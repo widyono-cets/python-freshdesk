@@ -15,8 +15,12 @@ class FreshdeskModel(object):
                 k = '_' + k
             setattr(self, k, v)
             self._keys.add(k)
-        self.created_at = self._to_timestamp(self.created_at)
-        self.updated_at = self._to_timestamp(self.updated_at)
+        if hasattr(self, 'created_at') and self.created_at:
+            self.created_at = self._to_timestamp(self.created_at)
+        if hasattr(self, 'updated_at') and self.updated_at:
+            self.updated_at = self._to_timestamp(self.updated_at)
+        if hasattr(self, 'last_login_at') and self.last_login_at:
+            self.last_login_at = self._to_timestamp(self.last_login_at)
 
     def _to_timestamp(self, timestamp_str):
         """Converts a timestamp string as returned by the API to
@@ -112,10 +116,10 @@ class Company(FreshdeskModel):
 
 class Agent(FreshdeskModel):
     def __str__(self):
-        return self.contact['name']
+        return '{} {}'.format(self.first_name, self.last_name)
 
     def __repr__(self):
-        return '<Agent #{} \'{}\'>'.format(self.id, self.contact['name'])
+        return '<Agent #{} \'{} {}\'>'.format(self.id, self.first_name, self.last_name)
 
 
 class Role(FreshdeskModel):

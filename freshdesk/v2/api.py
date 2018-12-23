@@ -11,7 +11,7 @@ class TicketAPI(object):
     def get_ticket(self, ticket_id):
         """Fetches the ticket for the given ticket ID"""
         url = 'tickets/%d' % ticket_id
-        ticket = self._api._get(url)
+        ticket = self._api._get(url)['ticket']
         return Ticket(**ticket)
 
     def create_ticket(self, subject, **kwargs):
@@ -80,18 +80,15 @@ class TicketAPI(object):
         """List all tickets, optionally filtered by a view. Specify filters as
         keyword arguments, such as:
 
+        ## TODO: dynamically pull list of filters, default to None
         filter_name = one of ['new_and_my_open', 'watching', 'spam', 'deleted',
                               None]
-            (defaults to 'new_and_my_open')
-            Passing None means that no named filter will be passed to
-            Freshdesk, which mimics the behavior of the 'all_tickets' filter
-            in v1 of the API.
-
-        Multiple filters are AND'd together.
+            (defaults to None, meaning show all tickets)
         """
 
-        filter_name = 'new_and_my_open'
+        filter_name = None
         if 'filter_name' in kwargs:
+            ## TODO: clean filter_name for URL safety
             filter_name = kwargs['filter_name']
             del kwargs['filter_name']
 
@@ -109,8 +106,9 @@ class TicketAPI(object):
         while True:
             this_page = self._api._get(url + 'page=%d&per_page=%d'
                                        % (page, per_page), kwargs)
-            tickets += this_page
-            if len(this_page) < per_page or 'page' in kwargs:
+            ## TODO: error checking!
+            tickets += this_page['tickets']
+            if len(this_page['tickets']) < per_page or 'page' in kwargs:
                 break
             page += 1
 
@@ -350,17 +348,28 @@ class AgentAPI(object):
         while True:
             this_page = self._api._get(url + 'page=%d&per_page=%d'
                                        % (page, per_page), kwargs)
-            agents += this_page
-            if len(this_page) < per_page or 'page' in kwargs:
+            agents += this_page['agents']
+            if len(this_page['agents']) < per_page or 'page' in kwargs:
                 break
             page += 1
 
         return [Agent(**a) for a in agents]
 
-    def get_agent(self, agent_id):
+    def get_agent_from_email(self, agent_email):
+        """Fetches the agent for the given agent e-mail"""
+        agent_list = self.list_agents()
+        agent_email_id_map = {agent.email:agent.id for agent in agent_list}
+        agent_id = agent_email_id_map[agent_email]
+        return self.get_agent_from_id(agent_id)
+
+    def get_agent_from_id(self, agent_id):
         """Fetches the agent for the given agent ID"""
         url = 'agents/%s' % agent_id
-        return Agent(**self._api._get(url))
+        agent = self._api._get(url)['agent']
+        return Agent(**agent)
+
+    def get_agent(self, agent_id):
+        return self.get_agent_from_id(agent_id)
 
     def update_agent(self, agent_id, **kwargs):
         """Updates an agent"""
@@ -372,11 +381,6 @@ class AgentAPI(object):
         """Delete the agent for the given agent ID"""
         url = 'agents/%d' % agent_id
         self._api._delete(url)
-
-    def currently_authenticated_agent(self):
-        """Fetches currently logged in agent"""
-        url = 'agents/me'
-        return Agent(**self._api._get(url))
 
 
 class API(object):
@@ -406,7 +410,7 @@ class API(object):
         self.roles = RoleAPI(self)
         self.ticket_fields = TicketFieldAPI(self)
 
-        if domain.find('freshdesk.com') < 0:
+        if domain.find('freshservice.com') < 0:
             raise AttributeError('Freshdesk v2 API works only via Freshdesk'
                                  'domains and not via custom CNAMEs')
         self.domain = domain
@@ -420,7 +424,7 @@ class API(object):
 
         if 'Retry-After' in req.headers:
             raise HTTPError('429 Rate Limit Exceeded: API rate-limit has been reached until {} seconds.'
-                            'See http://freshdesk.com/api#ratelimit'.format(req.headers['Retry-After']))
+                    'See https://api.freshservice.com/v2/#rate_limit'.format(req.headers['Retry-After']))
 
         if 'code' in j and j['code'] == "invalid_credentials":
             raise HTTPError('401 Unauthorized: Please login with correct credentials')
