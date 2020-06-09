@@ -7,7 +7,7 @@ from freshdesk.v2.errors import (
     FreshdeskAccessDenied, FreshdeskBadRequest, FreshdeskError, FreshdeskNotFound, FreshdeskRateLimited,
     FreshdeskServerError, FreshdeskUnauthorized,
 )
-from freshdesk.v2.models import Agent, Comment, Company, Contact, Customer, Group, Role, Ticket, TicketField, TimeEntry
+from freshdesk.v2.models import Agent, Comment, Group, Role, Ticket, TicketField
 
 
 class TicketAPI(object):
@@ -17,7 +17,7 @@ class TicketAPI(object):
     def get_ticket(self, ticket_id):
         """Fetches the ticket for the given ticket ID"""
         url = 'tickets/%d' % ticket_id
-        ticket = self._api._get(url)
+        ticket = self._api._get(url)['ticket']
         return Ticket(**ticket)
 
     def create_ticket(self, subject, **kwargs):
@@ -127,7 +127,7 @@ class TicketAPI(object):
         # else return the requested page and break the loop
         while True:
             this_page = self._api._get(url + 'page=%d&per_page=%d'
-                                       % (page, per_page), kwargs)
+                                       % (page, per_page), kwargs)['tickets']
             tickets += this_page
             if len(this_page) < per_page or 'page' in kwargs:
                 break
@@ -164,8 +164,7 @@ class TicketAPI(object):
         tickets = []
         while True:
             this_page = self._api._get(url + 'page={}&query="{}"'.format(page, query),
-                                        kwargs)
-            this_page = this_page['results']
+                                        kwargs)['results']
             tickets += this_page
             if len(this_page) < per_page or page == 10 or 'page' in kwargs:
                 break
@@ -181,7 +180,7 @@ class CommentAPI(object):
     def list_comments(self, ticket_id):
         url = 'tickets/%d/conversations' % ticket_id
         comments = []
-        for c in self._api._get(url):
+        for c in self._api._get(url)['conversations']:
             comments.append(Comment(**c))
         return comments
 
@@ -210,7 +209,7 @@ class GroupAPI(object):
         groups = []
         while True:
             this_page = self._api._get(url + 'page=%d&per_page=%d'
-                                       % (page, per_page), kwargs)
+                                       % (page, per_page), kwargs)['groups']
             groups += this_page
             if len(this_page) < per_page or 'page' in kwargs:
                 break
@@ -220,115 +219,7 @@ class GroupAPI(object):
 
     def get_group(self, group_id):
         url = 'groups/%s' % group_id
-        return Group(**self._api._get(url))
-
-
-class ContactAPI(object):
-    def __init__(self, api):
-        self._api = api
-
-    def list_contacts(self, **kwargs):
-        """
-        List all contacts, optionally filtered by a query. Specify filters as
-        query keyword argument, such as:
-
-        email=abc@xyz.com,
-        mobile=1234567890,
-        phone=1234567890,
-
-        contacts can be filtered by state and company_id such as:
-
-        state=[blocked/deleted/unverified/verified]
-        company_id=1234
-
-        contacts updated after a timestamp can be filtered such as;
-
-        _updated_since=2018-01-19T02:00:00Z
-
-        Passing None means that no named filter will be passed to
-        Freshdesk, which returns list of all contacts
-
-        """
-
-        url = 'contacts?'
-        page = 1 if not 'page' in kwargs else kwargs['page']
-        per_page = 100 if not 'per_page' in kwargs else kwargs['per_page']
-
-        contacts = []
-
-        # Skip pagination by looping over each page and adding tickets if 'page' key is not in kwargs.
-        # else return the requested page and break the loop
-        while True:
-            this_page = self._api._get(url + 'page=%d&per_page=%d'
-                                       % (page, per_page), kwargs)
-            contacts += this_page
-            if len(this_page) < per_page or 'page' in kwargs:
-                break
-
-            page += 1
-
-        return [Contact(**c) for c in contacts]
-
-    def create_contact(self, *args, **kwargs):
-        """Creates a contact"""
-        url = 'contacts'
-        data = {
-            'view_all_tickets': False,
-            'description': 'Freshdesk Contact'
-        }
-        data.update(kwargs)
-        return Contact(**self._api._post(url, data=json.dumps(data)))
-
-    def get_contact(self, contact_id):
-        url = 'contacts/%d' % contact_id
-        return Contact(**self._api._get(url))
-
-    def update_contact(self, contact_id, **data):
-        url = 'contacts/%d' % contact_id
-        return Contact(**self._api._put(url, data=json.dumps(data)))
-
-    def soft_delete_contact(self, contact_id):
-        url = 'contacts/%d' % contact_id
-        self._api._delete(url)
-
-    def restore_contact(self, contact_id):
-        url = 'contacts/%d/restore' % contact_id
-        self._api._put(url)
-
-    def permanently_delete_contact(self, contact_id, force=True):
-        url = 'contacts/%d/hard_delete?force=%r' % (contact_id, force)
-        self._api._delete(url)
-
-    def make_agent(self, contact_id, **kwargs):
-        url = 'contacts/%d/make_agent' % contact_id
-        data = {
-            'occasional': False,
-            'ticket_scope': 2,
-        }
-        data.update(kwargs)
-        contact = self._api._put(url, data=json.dumps(data))
-        return self._api.agents.get_agent(contact['agent']['id'])
-
-
-class CustomerAPI(object):
-    def __init__(self, api):
-        self._api = api
-
-    def get_customer(self, company_id):
-        url = 'customers/%s' % company_id
-        return Customer(**self._api._get(url))
-
-    def get_customer_from_contact(self, contact):
-        return self.get_customer(contact.customer_id)
-
-
-class CompanyAPI(object):
-    def __init__(self, api):
-        self._api = api
-
-    def get_company(self, company_id):
-        url = 'companies/%s' % company_id
-        return Company(**self._api._get(url))
+        return Group(**self._api._get(url)['group'])
 
 
 class RoleAPI(object):
@@ -338,30 +229,14 @@ class RoleAPI(object):
     def list_roles(self):
         url = 'roles'
         roles = []
-        for r in self._api._get(url):
+        for r in self._api._get(url)['roles']:
             roles.append(Role(**r))
         return roles
 
     def get_role(self, role_id):
         url = 'roles/%s' % role_id
-        return Role(**self._api._get(url))
+        return Role(**self._api._get(url)['roles'])
 
-class TimeEntryAPI(object):
-    def __init__(self, api):
-        self._api = api
-
-    def list_time_entries(self, ticket_id=None):
-        url = 'tickets/time_entries'
-        if ticket_id is not None:
-            url = 'tickets/%d/time_entries' % ticket_id
-        timeEntries = []
-        for r in self._api._get(url):
-            timeEntries.append(TimeEntry(**r))
-        return timeEntries
-
-    def get_role(self, role_id):
-        url = 'roles/%s' % role_id
-        return Role(**self._api._get(url))
 
 class TicketFieldAPI(object):
     def __init__(self, api):
@@ -374,7 +249,7 @@ class TicketFieldAPI(object):
         if 'type' in kwargs:
             url = "{}?type={}".format(url, kwargs['type'])
 
-        for tf in self._api._get(url):
+        for tf in self._api._get(url)['ticket_fields']:
             ticket_fields.append(TicketField(**tf))
         return ticket_fields
 
@@ -410,7 +285,7 @@ class AgentAPI(object):
         # else return the requested page and break the loop
         while True:
             this_page = self._api._get(url + 'page=%d&per_page=%d'
-                                       % (page, per_page), kwargs)
+                                       % (page, per_page), kwargs)['agents']
             agents += this_page
             if len(this_page) < per_page or 'page' in kwargs:
                 break
@@ -421,7 +296,7 @@ class AgentAPI(object):
     def get_agent(self, agent_id):
         """Fetches the agent for the given agent ID"""
         url = 'agents/%s' % agent_id
-        return Agent(**self._api._get(url))
+        return Agent(**self._api._get(url)['agent'])
 
     def update_agent(self, agent_id, **kwargs):
         """Updates an agent"""
@@ -437,7 +312,7 @@ class AgentAPI(object):
     def currently_authenticated_agent(self):
         """Fetches currently logged in agent"""
         url = 'agents/me'
-        return Agent(**self._api._get(url))
+        return Agent(**self._api._get(url)['agent'])
 
 
 class API(object):
@@ -461,18 +336,22 @@ class API(object):
 
         self.tickets = TicketAPI(self)
         self.comments = CommentAPI(self)
-        self.contacts = ContactAPI(self)
-        self.companies = CompanyAPI(self)
         self.groups = GroupAPI(self)
-        self.customers = CustomerAPI(self)
         self.agents = AgentAPI(self)
         self.roles = RoleAPI(self)
         self.ticket_fields = TicketFieldAPI(self)
 
-        if domain.find('freshdesk.com') < 0:
+        if domain.find('freshservice.com') < 0:
             raise AttributeError('Freshdesk v2 API works only via Freshdesk'
                                  'domains and not via custom CNAMEs')
         self.domain = domain
+
+        dummy_req = self._session.get(self._api_prefix + 'tickets/1')
+        self.ratelimit_remaining = dummy_req.headers['x-ratelimit-remaining']
+        self.ratelimit_total = dummy_req.headers['x-ratelimit-total']
+        self.ratelimit_used = dummy_req.headers['x-ratelimit-used-currentrequest']
+        # {'Date', 'Content-Type', 'Transfer-Encoding', 'Connection', 'status', 'cache-control', 'x-freshservice-api-version', 'pragma', 'x-xss-protection', 'x-request-id', 'x-frame-options', 'x-content-type-options', 'expires', 'x-envoy-upstream-service-time', 'x-fw-ratelimiting-managed', 'x-ratelimit-total', 'x-ratelimit-remaining', 'x-ratelimit-used-currentrequest'}
+
 
     def _action(self, req):
         try:
@@ -497,7 +376,7 @@ class API(object):
         elif req.status_code == 429:
             raise FreshdeskRateLimited(
                 '429 Rate Limit Exceeded: API rate-limit has been reached until {} seconds. See '
-                'http://freshdesk.com/api#ratelimit'.format(req.headers.get('Retry-After')))
+                'http://freshservice.com/api#ratelimit'.format(req.headers.get('Retry-After')))
         elif 500 < req.status_code < 600:
             raise FreshdeskServerError('{}: Server Error'.format(req.status_code))
 
