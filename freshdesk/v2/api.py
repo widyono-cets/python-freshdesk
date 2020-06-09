@@ -1,7 +1,13 @@
-import requests
-from requests.exceptions import HTTPError
 import json
-from freshdesk.v2.models import Ticket, Comment, Customer, Contact, Group, Company, Agent, Role, TicketField
+
+import requests
+from requests import HTTPError
+
+from freshdesk.v2.errors import (
+    FreshdeskAccessDenied, FreshdeskBadRequest, FreshdeskError, FreshdeskNotFound, FreshdeskRateLimited,
+    FreshdeskServerError, FreshdeskUnauthorized,
+)
+from freshdesk.v2.models import Agent, Comment, Company, Contact, Customer, Group, Role, Ticket, TicketField, TimeEntry
 
 
 class TicketAPI(object):
@@ -45,9 +51,22 @@ class TicketAPI(object):
 
         for attachment in attachments:
             file_name = attachment.split("/")[-1:][0]
-            multipart_data.append(('attachments[]', (file_name, open(attachment), None)))
+            multipart_data.append(('attachments[]', (file_name, open(attachment, 'rb'), None)))
 
-        ticket = self._api._post(url, data=data, files=multipart_data)
+        for key, value in data.copy().items():
+            # Reformat ticket properties to work with the multipart/form-data encoding.
+            if isinstance(value, list) and not key.endswith('[]'):
+                data[key + '[]'] = value
+                del data[key]
+
+        if 'custom_fields' in data and isinstance(data['custom_fields'], dict):
+            # Reformat custom fields to work with the multipart/form-data encoding.
+            for field, value in data['custom_fields'].items():
+                data['custom_fields[{}]'.format(field)] = value
+            del data['custom_fields']
+
+        # Override the content type so that `requests` correctly sets it to multipart/form-data instead of JSON.
+        ticket = self._api._post(url, data=data, files=multipart_data, headers={'Content-Type': None})
         return ticket
 
     def create_outbound_email(self, subject, description, email, email_config_id, **kwargs):
@@ -127,6 +146,32 @@ class TicketAPI(object):
     def list_deleted_tickets(self):
         """Lists all deleted tickets."""
         return self.list_tickets(filter_name='deleted')
+
+    def filter_tickets(self, query, **kwargs):
+        """Filter tickets by a given query string. The query string must be in
+        the format specified in the API documentation at:
+          https://developer.freshdesk.com/api/#filter_tickets
+
+        query = "(ticket_field:integer OR ticket_field:'string') AND ticket_field:boolean"
+        """
+        if(len(query) > 512):
+            raise AttributeError('Query string can have up to 512 characters')
+        
+        url = 'search/tickets?'
+        page = 1 if not 'page' in kwargs else kwargs['page']
+        per_page = 30
+
+        tickets = []
+        while True:
+            this_page = self._api._get(url + 'page={}&query="{}"'.format(page, query),
+                                        kwargs)
+            this_page = this_page['results']
+            tickets += this_page
+            if len(this_page) < per_page or page == 10 or 'page' in kwargs:
+                break
+            page += 1
+
+        return [Ticket(**t) for t in tickets]
 
 
 class CommentAPI(object):
@@ -301,6 +346,22 @@ class RoleAPI(object):
         url = 'roles/%s' % role_id
         return Role(**self._api._get(url))
 
+class TimeEntryAPI(object):
+    def __init__(self, api):
+        self._api = api
+
+    def list_time_entries(self, ticket_id=None):
+        url = 'tickets/time_entries'
+        if ticket_id is not None:
+            url = 'tickets/%d/time_entries' % ticket_id
+        timeEntries = []
+        for r in self._api._get(url):
+            timeEntries.append(TimeEntry(**r))
+        return timeEntries
+
+    def get_role(self, role_id):
+        url = 'roles/%s' % role_id
+        return Role(**self._api._get(url))
 
 class TicketFieldAPI(object):
     def __init__(self, api):
@@ -310,7 +371,7 @@ class TicketFieldAPI(object):
         url = 'ticket_fields'
         ticket_fields = []
 
-        if kwargs.has_key('type'):
+        if 'type' in kwargs:
             url = "{}?type={}".format(url, kwargs['type'])
 
         for tf in self._api._get(url):
@@ -380,7 +441,7 @@ class AgentAPI(object):
 
 
 class API(object):
-    def __init__(self, domain, api_key):
+    def __init__(self, domain, api_key, verify=True, proxies=None):
         """Creates a wrapper to perform API actions.
 
         Arguments:
@@ -394,6 +455,8 @@ class API(object):
         self._api_prefix = 'https://{}/api/v2/'.format(domain.rstrip('/'))
         self._session = requests.Session()
         self._session.auth = (api_key, 'unused_with_api_key')
+        self._session.verify = verify
+        self._session.proxies = proxies
         self._session.headers = {'Content-Type': 'application/json'}
 
         self.tickets = TicketAPI(self)
@@ -414,26 +477,35 @@ class API(object):
     def _action(self, req):
         try:
             j = req.json()
-        except:
-            req.raise_for_status()
+        except ValueError:
             j = {}
 
-        if 'Retry-After' in req.headers:
-            raise HTTPError('429 Rate Limit Exceeded: API rate-limit has been reached until {} seconds.'
-                            'See http://freshdesk.com/api#ratelimit'.format(req.headers['Retry-After']))
-
-        if 'code' in j and j['code'] == "invalid_credentials":
-            raise HTTPError('401 Unauthorized: Please login with correct credentials')
-
+        error_message = 'Freshdesk Request Failed'
         if 'errors' in j:
-            raise HTTPError('{}: {}'.format(j.get('description'),
-                                            j.get('errors')))
+            error_message = '{}: {}'.format(j.get('description'), j.get('errors'))
+        elif 'message' in j:
+            error_message = j['message']
+            
+        if req.status_code == 400:
+            raise FreshdeskBadRequest(error_message)
+        elif req.status_code == 401:
+            raise FreshdeskUnauthorized(error_message)
+        elif req.status_code == 403:
+            raise FreshdeskAccessDenied(error_message)
+        elif req.status_code == 404:
+            raise FreshdeskNotFound(error_message)
+        elif req.status_code == 429:
+            raise FreshdeskRateLimited(
+                '429 Rate Limit Exceeded: API rate-limit has been reached until {} seconds. See '
+                'http://freshdesk.com/api#ratelimit'.format(req.headers.get('Retry-After')))
+        elif 500 < req.status_code < 600:
+            raise FreshdeskServerError('{}: Server Error'.format(req.status_code))
 
         # Catch any other errors
         try:
             req.raise_for_status()
-        except Exception as e:
-            raise HTTPError("{}: {}".format(e, j))
+        except HTTPError as e:
+            raise FreshdeskError("{}: {}".format(e, j))
 
         return j
 
@@ -444,10 +516,6 @@ class API(object):
 
     def _post(self, url, data={}, **kwargs):
         """Wrapper around request.post() to use the API prefix. Returns a JSON response."""
-        if 'files' in kwargs:
-            req = requests.post(self._api_prefix + url, auth=self._session.auth, data=data, **kwargs)
-            return self._action(req)
-
         req = self._session.post(self._api_prefix + url, data=data, **kwargs)
         return self._action(req)
 

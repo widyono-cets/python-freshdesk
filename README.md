@@ -4,7 +4,7 @@
 [![Coverage Status](https://img.shields.io/coveralls/sjkingo/python-freshdesk.svg)](https://coveralls.io/r/sjkingo/python-freshdesk)
 [![Latest version](https://img.shields.io/pypi/v/python-freshdesk.svg)](https://pypi.python.org/pypi/python-freshdesk)
 
-A library for the [Freshdesk](http://freshdesk.com/) helpdesk system for Python 2.7 and 3.
+A library for the [Freshdesk](http://freshdesk.com/) helpdesk system for Python 2.7 and 3.6+.
 
 There is support for a limited subset of features, using either Freshdesk API v1 or v2.
 
@@ -18,6 +18,8 @@ Support for the v2 API includes the following features:
   - [Delete](http://developer.freshdesk.com/api/#delete_a_ticket)
   - [Create OutBound Email](http://developer.freshdesk.com/api/#create_outbound_email)
   - [List](http://developer.freshdesk.com/api/#list_all_tickets)
+  - [Filter](https://developer.freshdesk.com/api/#filter_tickets) (as of 1.2.6)
+  - [List Time Entries](https://developers.freshdesk.com/api/#list_all_ticket_timeentries) (as of 1.2.4)
   - Custom ticket fields (as of 1.1.1)
 * [Ticket Fields](http://developer.freshdesk.com/api/#ticket_fields)
     - [List](http://developer.freshdesk.com/api/#list_all_ticket_fields)
@@ -68,8 +70,8 @@ The easiest way to install is from [PyPi](https://pypi.python.org/pypi/python-fr
 3. Optionally, run the test suite:
 
    ```
-   $ pip install nose
-   $ nosetests
+   $ pip install pytest
+   $ pytest
    ```
 
 ## Usage
@@ -92,6 +94,20 @@ By default, API v2 is used after the deprecation of Freshdesk V1 API
 ```
 
 The `API` class provides access to all the methods exposed by the Freshdesk API.
+
+Optionally, the API v2 can be given SSL verification and/or proxy settings to obey for all requests:
+
+```python
+>>> a = API('company.freshdesk.com', 'q8dnkjaS554Aol21dmnas9d92', verify=False)
+```
+
+```python
+>>> proxies = {
+...     'http': 'http://example.proxy:8000',
+...     'https': 'https://example.proxy:8443'
+... }
+>>> a = API('company.freshdesk.com', 'q8dnkjaS554Aol21dmnas9d92', proxies=proxies)
+```
 
 ### Tickets (API v2)
 

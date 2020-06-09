@@ -1,5 +1,7 @@
 coveralls
-nose
+pytest
+pytest-cov
+mock
 python-dateutil
 requests
 responses
