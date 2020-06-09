@@ -22,9 +22,6 @@ class MockedAPI(API):
                 re.compile(r'tickets\?page=1&per_page=100'): self.read_test_file('all_tickets.json'),
                 re.compile(r'tickets/1$'): self.read_test_file('ticket_1.json'),
                 re.compile(r'tickets/1/conversations'): self.read_test_file('conversations.json'),
-                re.compile(r'contacts\?page=1&per_page=100$'): self.read_test_file('contacts.json'),
-                re.compile(r'contacts/1$'): self.read_test_file('contact.json'),
-                re.compile(r'customers/1$'): self.read_test_file('customer.json'),
                 re.compile(r'groups\?page=1&per_page=100$'): self.read_test_file('groups.json'),
                 re.compile(r'groups/1$'): self.read_test_file('group_1.json'),
                 re.compile(r'roles$'): self.read_test_file('roles.json'),
@@ -42,20 +39,14 @@ class MockedAPI(API):
                 re.compile(r'tickets/outbound_email$'): self.read_test_file('outbound_email_1.json'),
                 re.compile(r'tickets/1/notes$'): self.read_test_file('note_1.json'),
                 re.compile(r'tickets/1/reply$'): self.read_test_file('reply_1.json'),
-                re.compile(r'contacts$'): self.read_test_file('contact.json'),
             },
             'put': {
                 re.compile(r'tickets/1$'): self.read_test_file('ticket_1_updated.json'),
-                re.compile(r'contacts/1$'): self.read_test_file('contact_updated.json'),
-                re.compile(r'contacts/1/restore$'): self.read_test_file('contact.json'),
-                re.compile(r'contacts/1/make_agent$'): self.read_test_file('contact_1_agent.json'),
                 re.compile(r'agents/1$'): self.read_test_file('agent_1_updated.json'),
             },
             'delete': {
                 re.compile(r'tickets/1$'): None,
                 re.compile(r'agents/1$'): None,
-                re.compile(r'contacts/1$'): None,
-                re.compile(r'contacts/1/hard_delete\?force=True$'): None,
             }
         }
 
