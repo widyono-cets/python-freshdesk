@@ -15,7 +15,7 @@ class FreshdeskModel(object):
                 k = '_' + k
             # testing: all null e-mail values should be converted to empty string
             #   to speed up searchability
-            if "email" in k:
+            if any(fieldmatch in k for fieldmatch in ["email", "name"]):
                 if v is None:
                     v=''
             setattr(self, k, v)

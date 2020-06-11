@@ -64,7 +64,7 @@ class TicketAPI(object):
             ticket = self._create_ticket_with_attachment(url, data)
             return Ticket(**ticket)
 
-        ticket = self._api._post(url, data=json.dumps(data))
+        ticket = self._api._post(url, data=json.dumps(data))['ticket']
         return Ticket(**ticket)
 
     def _create_ticket_with_attachment(self, url, data):
@@ -89,7 +89,7 @@ class TicketAPI(object):
             del data['custom_fields']
 
         # Override the content type so that `requests` correctly sets it to multipart/form-data instead of JSON.
-        ticket = self._api._post(url, data=data, files=multipart_data, headers={'Content-Type': None})
+        ticket = self._api._post(url, data=data, files=multipart_data, headers={'Content-Type': None})['ticket']
         return ticket
 
     def create_outbound_email(self, subject, description, email, email_config_id, **kwargs):
@@ -104,13 +104,13 @@ class TicketAPI(object):
             'email_config_id': email_config_id,
         }
         data.update(kwargs)
-        ticket = self._api._post(url, data=json.dumps(data))
+        ticket = self._api._post(url, data=json.dumps(data))['ticket']
         return Ticket(**ticket)
 
     def update_ticket(self, ticket_id, **kwargs):
         """Updates a ticket from a given ticket ID"""
         url = 'tickets/%d' % ticket_id
-        ticket = self._api._put(url, data=json.dumps(kwargs))
+        ticket = self._api._put(url, data=json.dumps(kwargs))['ticket']
         return Ticket(**ticket)
 
     def delete_ticket(self, ticket_id):
@@ -195,6 +195,21 @@ class TicketAPI(object):
 
         return [Ticket(**t) for t in tickets]
 
+    def summarize_ticket(self, ticket):
+        if ticket.responder_id is None:
+            agent = "Unassigned"
+        else:
+            agent = self._api.agents.get_agent(ticket.responder_id)
+        print(
+            f'Ticket #{ticket.id}\n'
+            f'\tGroup: {self._api.groups.get_group(ticket.group_id)}\n'
+            f'\tSubject: {ticket.subject}\n'
+            f'\tCreated at: {ticket.created_at}\n'
+            f'\tStatus: {ticket.status}\n'
+            f'\tRequester: {self._api.requesters.requester(ticket.requester_id)}\n'
+            f'\tAgent: {agent}\n'
+            f'\tDescription:\n{ticket.description_text}\n\n'
+            )
 
 class CommentAPI(object):
     def __init__(self, api):
@@ -222,14 +237,17 @@ class CommentAPI(object):
 
 class GroupAPI(object):
 
-    def __init__(self, api):
+    def __init__(self, api, cachefile=None, updatecache=False):
         self._api = api
-
-    def group_name_to_id(self, name):
-        return next((group.id for group in self._api.all_groups if group.name == name), None)
-
-    def group_id_to_name(self, id):
-        return next((group.name for group in self._api.all_groups if group.id == id), None)
+        self.cache = cachefile
+        self.all_groups = None
+        if not cachefile.exists() or updatecache:
+            self.all_groups = self.list_groups()
+            with open(cachefile, mode='wb') as f:
+                pickle.dump(self.all_groups,f)
+        else:
+            with open(cachefile, mode='rb') as f:
+                self.all_groups = pickle.load(f)
 
     def list_groups(self, **kwargs):
         url = 'groups?'
@@ -247,9 +265,13 @@ class GroupAPI(object):
 
         return [Group(**g) for g in groups]
 
-    def get_group(self, group_id):
-        url = 'groups/%s' % group_id
-        return Group(**self._api._get(url)['group'])
+    def get_groupid(self, name):
+        return next((group.id for group in self.all_groups if group.name == name), None)
+
+    def get_group(self, id):
+        return next((group for group in self.all_groups if group.id == id), None)
+#        url = 'groups/%s' % id
+#        return Group(**self._api._get(url)['group'])
 
 
 class RoleAPI(object):
@@ -285,8 +307,18 @@ class TicketFieldAPI(object):
 
 
 class AgentAPI(object):
-    def __init__(self, api):
+
+    def __init__(self, api, cachefile=None, updatecache=False):
         self._api = api
+        self.cache = cachefile
+        self.all_agents = None
+        if not cachefile.exists() or updatecache:
+            self.all_agents = self.list_agents()
+            with open(cachefile, mode='wb') as f:
+                pickle.dump(self.all_agents,f)
+        else:
+            with open(cachefile, mode='rb') as f:
+                self.all_agents = pickle.load(f)
 
     def list_agents(self, **kwargs):
         """List all agents, optionally filtered by a view. Specify filters as
@@ -323,6 +355,12 @@ class AgentAPI(object):
 
         return [Agent(**a) for a in agents]
 
+    def match_agent(self, keyword):
+        """Find all agent IDs whose first_name, last_name, or email match keyword"""
+        return [agent for agent in self.all_agents if any(
+            [keyword in field for field in [agent.first_name, agent.last_name, agent.email]]
+            )]
+
     def get_agent(self, agent_id):
         """Fetches the agent for the given agent ID"""
         url = 'agents/%s' % agent_id
@@ -331,7 +369,7 @@ class AgentAPI(object):
     def update_agent(self, agent_id, **kwargs):
         """Updates an agent"""
         url = 'agents/%s' % agent_id
-        agent = self._api._put(url, data=json.dumps(kwargs))
+        agent = self._api._put(url, data=json.dumps(kwargs))['agent']
         return Agent(**agent)
 
     def delete_agent(self, agent_id):
@@ -345,8 +383,18 @@ class AgentAPI(object):
         return Agent(**self._api._get(url)['agent'])
 
 class RequesterAPI(object):
-    def __init__(self, api):
+
+    def __init__(self, api, cachefile=None, updatecache=False):
         self._api = api
+        self.cache = cachefile
+        self.all_requesters = None
+        if not cachefile.exists() or updatecache:
+            self.all_requesters = self.list_requesters()
+            with open(cachefile, mode='wb') as f:
+                pickle.dump(self.all_requesters,f)
+        else:
+            with open(cachefile, mode='rb') as f:
+                self.all_requesters = pickle.load(f)
 
     def list_requesters(self, **kwargs):
         """List all requesters, optionally filtered by a view. Specify filters as
@@ -384,10 +432,10 @@ class RequesterAPI(object):
         return [Requester(**r) for r in requesters]
 
     def requester(self, id):
-        return next((requester for requester in self._api.all_requesters if requester.id == id), None)
+        return next((requester for requester in self.all_requesters if requester.id == id), None)
 
     def requester_ids(self, email):
-        return [requester.id for requester in self._api.all_requesters if email in requester.primary_email]
+        return [requester.id for requester in self.all_requesters if email in requester.primary_email]
 
     def get_requester(self, requester_id):
         """Fetches the requester for the given requester ID"""
@@ -397,7 +445,7 @@ class RequesterAPI(object):
     def update_requester(self, requester_id, **kwargs):
         """Updates a requester"""
         url = 'requesters/%s' % requester_id
-        requester = self._api._put(url, data=json.dumps(kwargs))
+        requester = self._api._put(url, data=json.dumps(kwargs))['requester']
         return Requester(**requester)
 
     def delete_requester(self, requester_id):
@@ -407,6 +455,7 @@ class RequesterAPI(object):
 
 
 class API(object):
+
     def __init__(self, domain, api_key, verify=True, proxies=None, cachedir=None, updatecache=False):
         """Creates a wrapper to perform API actions.
 
@@ -437,12 +486,9 @@ class API(object):
 
         self.tickets = TicketAPI(self)
         self.comments = CommentAPI(self)
-        self.groups = GroupAPI(self)
-        self.groupcache = Path(self.cachedir, "groups")
-        self.agents = AgentAPI(self)
-        self.agentcache = Path(self.cachedir, "agents")
-        self.requesters = RequesterAPI(self)
-        self.requestercache = Path(self.cachedir, "requesters")
+        self.groups = GroupAPI(self, cachefile=Path(self.cachedir, "groups"), updatecache=updatecache)
+        self.agents = AgentAPI(self, cachefile=Path(self.cachedir, "agents"), updatecache=updatecache)
+        self.requesters = RequesterAPI(self, cachefile=Path(self.cachedir, "requesters"), updatecache=updatecache)
         self.roles = RoleAPI(self)
         self.ticket_fields = TicketFieldAPI(self)
 
@@ -451,35 +497,11 @@ class API(object):
                                  'domains and not via custom CNAMEs')
         self.domain = domain
 
-        dummy_req = self._session.get(self._api_prefix + 'tickets/1')
-        self.ratelimit_remaining = dummy_req.headers['x-ratelimit-remaining']
-        self.ratelimit_total = dummy_req.headers['x-ratelimit-total']
-        self.ratelimit_used = dummy_req.headers['x-ratelimit-used-currentrequest']
-        # {'Date', 'Content-Type', 'Transfer-Encoding', 'Connection', 'status', 'cache-control', 'x-freshservice-api-version', 'pragma', 'x-xss-protection', 'x-request-id', 'x-frame-options', 'x-content-type-options', 'expires', 'x-envoy-upstream-service-time', 'x-fw-ratelimiting-managed', 'x-ratelimit-total', 'x-ratelimit-remaining', 'x-ratelimit-used-currentrequest'}
-
-        if not self.groupcache.exists() or updatecache:
-            self.all_groups = self.groups.list_groups()
-            with open(self.groupcache, mode='wb') as f:
-                pickle.dump(self.all_groups,f)
-        else:
-            with open(self.groupcache, mode='rb') as f:
-                self.all_groups = pickle.load(f)
-
-        if not self.agentcache.exists() or updatecache:
-            self.all_agents = self.agents.list_agents()
-            with open(self.agentcache, mode='wb') as f:
-                pickle.dump(self.all_agents,f)
-        else:
-            with open(self.agentcache, mode='rb') as f:
-                self.all_agents = pickle.load(f)
-
-        if not self.requestercache.exists() or updatecache:
-            self.all_requesters = self.requesters.list_requesters()
-            with open(self.requestercache, mode='wb') as f:
-                pickle.dump(self.all_requesters,f)
-        else:
-            with open(self.requestercache, mode='rb') as f:
-                self.all_requesters = pickle.load(f)
+        # dummy initial values to show they are not yet properly initialized via API call
+        #   but integers will allow testing with simple integer expressions
+        self.ratelimit_remaining = 9999999999
+        self.ratelimit_total     = 9999999999
+        self.ratelimit_used      = 9999999999
 
 
     def _action(self, req):
