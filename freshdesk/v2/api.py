@@ -201,7 +201,7 @@ class TicketAPI(object):
         else:
             agent = self._api.agents.get_agent(ticket.responder_id)
         print(
-            f'Ticket #{ticket.id}\n'
+            f'Ticket #{ticket.id} -> {self._api._gui_prefix}tickets/{ticket.id}\n'
             f'\tGroup: {self._api.groups.get_group(ticket.group_id)}\n'
             f'\tSubject: {ticket.subject}\n'
             f'\tCreated at: {ticket.created_at}\n'
@@ -468,6 +468,7 @@ class API(object):
         """
 
         self._api_prefix = 'https://{}/api/v2/'.format(domain.rstrip('/'))
+        self._gui_prefix = 'https://{}/helpdesk/'.format(domain.rstrip('/'))
         self._session = requests.Session()
         self._session.auth = (api_key, 'unused_with_api_key')
         self._session.verify = verify
