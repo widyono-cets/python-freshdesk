@@ -3,16 +3,39 @@ import json
 import requests
 from requests import HTTPError
 
+import os
+from pathlib import Path
+import pickle
+
 from freshdesk.v2.errors import (
     FreshdeskAccessDenied, FreshdeskBadRequest, FreshdeskError, FreshdeskNotFound, FreshdeskRateLimited,
     FreshdeskServerError, FreshdeskUnauthorized,
 )
-from freshdesk.v2.models import Agent, Comment, Group, Role, Ticket, TicketField
+from freshdesk.v2.models import Agent, Comment, Group, Role, Ticket, TicketField, Requester
 
+from datetime import datetime, timedelta
 
 class TicketAPI(object):
     def __init__(self, api):
         self._api = api
+
+    def source_name_to_id(self, name):
+        return Ticket.sources.index(name)
+
+    def source_id_to_name(self, id):
+        return Ticket.sources[id]
+
+    def status_name_to_id(self, name):
+        return Ticket.statuses.index(name)
+
+    def status_id_to_name(self, id):
+        return Ticket.statuses[id]
+
+    def priority_name_to_id(self, name):
+        return Ticket.priorities.index(name)
+
+    def priority_id_to_name(self, id):
+        return Ticket.priorties[id]
 
     def get_ticket(self, ticket_id):
         """Fetches the ticket for the given ticket ID"""
@@ -95,7 +118,7 @@ class TicketAPI(object):
         url = 'tickets/%d' % ticket_id
         self._api._delete(url)
 
-    def list_tickets(self, **kwargs):
+    def list_tickets(self, max_pages=None, **kwargs):
         """List all tickets, optionally filtered by a view. Specify filters as
         keyword arguments, such as:
 
@@ -129,7 +152,7 @@ class TicketAPI(object):
             this_page = self._api._get(url + 'page=%d&per_page=%d'
                                        % (page, per_page), kwargs)['tickets']
             tickets += this_page
-            if len(this_page) < per_page or 'page' in kwargs:
+            if len(this_page) < per_page or 'page' in kwargs or (max_pages is not None and page >= max_pages):
                 break
             page += 1
 
@@ -198,8 +221,15 @@ class CommentAPI(object):
 
 
 class GroupAPI(object):
+
     def __init__(self, api):
         self._api = api
+
+    def group_name_to_id(self, name):
+        return next((group.id for group in self._api.all_groups if group.name == name), None)
+
+    def group_id_to_name(self, id):
+        return next((group.name for group in self._api.all_groups if group.id == id), None)
 
     def list_groups(self, **kwargs):
         url = 'groups?'
@@ -314,9 +344,70 @@ class AgentAPI(object):
         url = 'agents/me'
         return Agent(**self._api._get(url)['agent'])
 
+class RequesterAPI(object):
+    def __init__(self, api):
+        self._api = api
+
+    def list_requesters(self, **kwargs):
+        """List all requesters, optionally filtered by a view. Specify filters as
+        keyword arguments, such as:
+
+        {
+            email='abc@xyz.com',
+            phone=873902,
+            mobile=56523,
+            state='fulltime'
+        }
+
+        Passing None means that no named filter will be passed to
+        Freshdesk, which returns list of all requesters
+
+        Multiple filters are AND'd together.
+        """
+
+        url = 'requesters?'
+        page = 1 if not 'page' in kwargs else kwargs['page']
+        per_page = 100 if not 'per_page' in kwargs else kwargs['per_page']
+
+        requesters = []
+
+        # Skip pagination by looping over each page and adding tickets if 'page' key is not in kwargs.
+        # else return the requested page and break the loop
+        while True:
+            this_page = self._api._get(url + 'page=%d&per_page=%d'
+                                       % (page, per_page), kwargs)['requesters']
+            requesters += this_page
+            if len(this_page) < per_page or 'page' in kwargs:
+                break
+            page += 1
+
+        return [Requester(**r) for r in requesters]
+
+    def requester(self, id):
+        return next((requester for requester in self._api.all_requesters if requester.id == id), None)
+
+    def requester_ids(self, email):
+        return [requester.id for requester in self._api.all_requesters if email in requester.primary_email]
+
+    def get_requester(self, requester_id):
+        """Fetches the requester for the given requester ID"""
+        url = 'requesters/%s' % requester_id
+        return Requester(**self._api._get(url)['requester'])
+
+    def update_requester(self, requester_id, **kwargs):
+        """Updates a requester"""
+        url = 'requesters/%s' % requester_id
+        requester = self._api._put(url, data=json.dumps(kwargs))
+        return Requester(**requester)
+
+    def delete_requester(self, requester_id):
+        """Delete the requester for the given requester ID"""
+        url = 'requesters/%d' % requester_id
+        self._api._delete(url)
+
 
 class API(object):
-    def __init__(self, domain, api_key, verify=True, proxies=None):
+    def __init__(self, domain, api_key, verify=True, proxies=None, cachedir=None, updatecache=False):
         """Creates a wrapper to perform API actions.
 
         Arguments:
@@ -334,10 +425,24 @@ class API(object):
         self._session.proxies = proxies
         self._session.headers = {'Content-Type': 'application/json'}
 
+        if cachedir is not None:
+            self.cachedir = Path(cachedir)
+        else:
+            self.cachedir = Path(Path.home(),".freshdesk")
+        if not self.cachedir.exists():
+            try:
+                os.mkdir(self.cachedir)
+            except:
+                raise AttributeError('Cannot create cache directory')
+
         self.tickets = TicketAPI(self)
         self.comments = CommentAPI(self)
         self.groups = GroupAPI(self)
+        self.groupcache = Path(self.cachedir, "groups")
         self.agents = AgentAPI(self)
+        self.agentcache = Path(self.cachedir, "agents")
+        self.requesters = RequesterAPI(self)
+        self.requestercache = Path(self.cachedir, "requesters")
         self.roles = RoleAPI(self)
         self.ticket_fields = TicketFieldAPI(self)
 
@@ -352,8 +457,37 @@ class API(object):
         self.ratelimit_used = dummy_req.headers['x-ratelimit-used-currentrequest']
         # {'Date', 'Content-Type', 'Transfer-Encoding', 'Connection', 'status', 'cache-control', 'x-freshservice-api-version', 'pragma', 'x-xss-protection', 'x-request-id', 'x-frame-options', 'x-content-type-options', 'expires', 'x-envoy-upstream-service-time', 'x-fw-ratelimiting-managed', 'x-ratelimit-total', 'x-ratelimit-remaining', 'x-ratelimit-used-currentrequest'}
 
+        if not self.groupcache.exists() or updatecache:
+            self.all_groups = self.groups.list_groups()
+            with open(self.groupcache, mode='wb') as f:
+                pickle.dump(self.all_groups,f)
+        else:
+            with open(self.groupcache, mode='rb') as f:
+                self.all_groups = pickle.load(f)
+
+        if not self.agentcache.exists() or updatecache:
+            self.all_agents = self.agents.list_agents()
+            with open(self.agentcache, mode='wb') as f:
+                pickle.dump(self.all_agents,f)
+        else:
+            with open(self.agentcache, mode='rb') as f:
+                self.all_agents = pickle.load(f)
+
+        if not self.requestercache.exists() or updatecache:
+            self.all_requesters = self.requesters.list_requesters()
+            with open(self.requestercache, mode='wb') as f:
+                pickle.dump(self.all_requesters,f)
+        else:
+            with open(self.requestercache, mode='rb') as f:
+                self.all_requesters = pickle.load(f)
+
 
     def _action(self, req):
+
+        self.ratelimit_remaining = req.headers['x-ratelimit-remaining']
+        self.ratelimit_total = req.headers['x-ratelimit-total']
+        self.ratelimit_used = req.headers['x-ratelimit-used-currentrequest']
+
         try:
             j = req.json()
         except ValueError:
@@ -407,3 +541,6 @@ class API(object):
         """Wrapper around request.delete() to use the API prefix. Returns a JSON response."""
         req = self._session.delete(self._api_prefix + url)
         return self._action(req)
+
+def age_to_utc(**kwargs):
+    return (datetime.today() - timedelta(**kwargs)).isoformat()

@@ -13,6 +13,11 @@ class FreshdeskModel(object):
         for k, v in kwargs.items():
             if hasattr(Ticket, k):
                 k = '_' + k
+            # testing: all null e-mail values should be converted to empty string
+            #   to speed up searchability
+            if "email" in k:
+                if v is None:
+                    v=''
             setattr(self, k, v)
             self._keys.add(k)
         if hasattr(self, 'created_at') and self.created_at:
@@ -36,38 +41,70 @@ class TicketField(FreshdeskModel):
         return '<TicketField \'{}\' \'{}\'>'.format(self.name, self.description)
 
 class Ticket(FreshdeskModel):
+
+    # https://api.freshservice.com/v2/#update_ticket_priority
+    statuses = [
+        None,
+        None,
+        'Open',            # 2
+        'Pending',         # 3
+        'Resolved',        # 4
+        'Closed'           # 5
+    ]
+    priorities = [
+        None,
+        'Low',             # 1
+        'Medium',          # 2
+        'High',            # 3
+        'Urgent'           # 4
+    ]
+    sources = [
+        None,
+        'Email',           # 1
+        'Portal',          # 2
+        'Phone',           # 3
+        'Chat',            # 4
+        'Feedback Widget', # 5
+        'Yammer',          # 6
+        'AWS Cloudwatch',  # 7
+        'Pagerduty',       # 8
+        'Walkup',          # 9
+        'Slack'            # 10
+        ]
+
     def __str__(self):
         return self.subject
 
     def __repr__(self):
-        return '<Ticket \'{}\' #{}>'.format(self.subject, self.id)
+        return '<Ticket #INC-{} \'{}\'>'.format(self.id, self.subject)
 
     @property
     def priority(self):
-        _p = {1: 'low', 2: 'medium', 3: 'high', 4: 'urgent'}
-        return _p[self._priority]
+        try:
+            return self.priorities[self._priority]
+        except KeyError:
+            return 'priority_{}'.format(self._priority)
 
     @property
     def status(self):
-        _s = {2: 'open', 3: 'pending', 4: 'resolved', 5: 'closed'}
         try:
-            return _s[self._status]
+            return self.statuses[self._status]
         except KeyError:
             return 'status_{}'.format(self._status)
 
     @property
     def source(self):
-        _s = {1: 'email', 2: 'portal', 3: 'phone', 4: 'forum', 5: 'twitter',
-              6: 'facebook', 7: 'chat'}
-        return _s[self._source]
-
+        try:
+            return self.sources[self._source]
+        except KeyError:
+            return 'source_{}'.format(self._source)
 
 class Group(FreshdeskModel):
     def __str__(self):
         return self.name
 
     def __repr__(self):
-        return '<Group \'{}\'>'.format(self.name)
+        return '<Group \'{}\' -> {}>'.format(self.name, self.id)
 
 
 class Comment(FreshdeskModel):
@@ -91,6 +128,12 @@ class Agent(FreshdeskModel):
     def __repr__(self):
         return '<Agent #{} \'{} {}\'>'.format(self.id, self.first_name, self.last_name)
 
+class Requester(FreshdeskModel):
+    def __str__(self):
+        return '{} {}'.format(self.first_name, self.last_name)
+
+    def __repr__(self):
+        return '<Requester #{} \'{} {}\'>'.format(self.id, self.first_name, self.last_name)
 
 class Role(FreshdeskModel):
     def __str__(self):
