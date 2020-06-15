@@ -1,7 +1,7 @@
 from requests import HTTPError
 
 
-class FreshdeskError(HTTPError):
+class FreshserviceError(HTTPError):
     """
     Base error class.
 
@@ -9,25 +9,25 @@ class FreshdeskError(HTTPError):
     """
 
 
-class FreshdeskBadRequest(FreshdeskError):
+class FreshserviceBadRequest(FreshserviceError):
     """Most 40X and 501 status codes"""
 
 
-class FreshdeskUnauthorized(FreshdeskError):
+class FreshserviceUnauthorized(FreshserviceError):
     """401 Unauthorized"""
 
 
-class FreshdeskAccessDenied(FreshdeskError):
+class FreshserviceAccessDenied(FreshserviceError):
     """403 Forbidden"""
 
 
-class FreshdeskNotFound(FreshdeskError):
+class FreshserviceNotFound(FreshserviceError):
     """404"""
 
 
-class FreshdeskRateLimited(FreshdeskError):
+class FreshserviceRateLimited(FreshserviceError):
     """429 Rate Limit Reached"""
 
 
-class FreshdeskServerError(FreshdeskError):
+class FreshserviceServerError(FreshserviceError):
     """50X errors"""

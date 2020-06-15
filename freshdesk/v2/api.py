@@ -8,8 +8,8 @@ from pathlib import Path
 import pickle
 
 from freshdesk.v2.errors import (
-    FreshdeskAccessDenied, FreshdeskBadRequest, FreshdeskError, FreshdeskNotFound, FreshdeskRateLimited,
-    FreshdeskServerError, FreshdeskUnauthorized,
+    FreshserviceAccessDenied, FreshserviceBadRequest, FreshserviceError, FreshserviceNotFound, FreshserviceRateLimited,
+    FreshserviceServerError, FreshserviceUnauthorized,
 )
 from freshdesk.v2.models import Agent, Comment, Group, Role, Ticket, TicketField, Requester
 
@@ -126,7 +126,7 @@ class TicketAPI(object):
                               None]
             (defaults to 'new_and_my_open')
             Passing None means that no named filter will be passed to
-            Freshdesk, which mimics the behavior of the 'all_tickets' filter
+            Freshservice, which mimics the behavior of the 'all_tickets' filter
             in v1 of the API.
 
         Multiple filters are AND'd together.
@@ -170,31 +170,6 @@ class TicketAPI(object):
         """Lists all deleted tickets."""
         return self.list_tickets(filter_name='deleted')
 
-    def filter_tickets(self, query, **kwargs):
-        """Filter tickets by a given query string. The query string must be in
-        the format specified in the API documentation at:
-          https://developer.freshdesk.com/api/#filter_tickets
-
-        query = "(ticket_field:integer OR ticket_field:'string') AND ticket_field:boolean"
-        """
-        if(len(query) > 512):
-            raise AttributeError('Query string can have up to 512 characters')
-        
-        url = 'search/tickets?'
-        page = 1 if not 'page' in kwargs else kwargs['page']
-        per_page = 30
-
-        tickets = []
-        while True:
-            this_page = self._api._get(url + 'page={}&query="{}"'.format(page, query),
-                                        kwargs)['results']
-            tickets += this_page
-            if len(this_page) < per_page or page == 10 or 'page' in kwargs:
-                break
-            page += 1
-
-        return [Ticket(**t) for t in tickets]
-
     def summarize_ticket(self, ticket, verbosity=0):
         if ticket.responder_id is None:
             agent = "Unassigned"
@@ -202,44 +177,44 @@ class TicketAPI(object):
             agent = self._api.agents.get_agent(ticket.responder_id)
         print(
             f'Ticket #{ticket.id} -> {self._api._gui_prefix}tickets/{ticket.id}\n'
-            )
+            ,end="")
         if verbosity > 0:
             print(
                 f'\tSubject: {ticket.subject}\n'
                 f'\tRequester: {self._api.requesters.requester(ticket.requester_id)}\n'
                 f'\tCreated at: {ticket.created_at}\n'
-                )
+                ,end="")
         if verbosity > 2:
             print(
                 f'\tUpdated at: {ticket.updated_at}\n'
-                f'\tTo_Emails: {to_emails}\n'
-                f'\tCC_Emails: {cc_emails}\n'
-                )
+                f'\tTo_Emails: {ticket.to_emails}\n'
+                f'\tCC_Emails: {ticket.cc_emails}\n'
+                ,end="")
         if verbosity > 1:
             print(
                 f'\tGroup: {self._api.groups.get_group(ticket.group_id)}\n'
                 f'\tStatus: {ticket.status}\n'
                 f'\tAgent: {agent}\n'
-                )
+                ,end="")
         if verbosity > 2:
             print(
-                f'\tDue by: {due_by}\n'
-                f'\tDeleted: {deleted}\n'
-                )
+                f'\tDue by: {ticket.due_by}\n'
+                f'\tDeleted: {ticket.deleted}\n'
+                ,end="")
         # always print this lengthy field at the end of the output
         description_text_lines=ticket.description_text.split("\n")
         if verbosity > 1:
             first_10_lines="\n\t".join(description_text_lines[0:10])
             print(
-                f'\tDescription:\n\t{first_10_lines}'
-                )
+                f'\tDescription:\n\t{first_10_lines}\n'
+                ,end="")
         if verbosity > 2 and len(description_text_lines)>10:
             rest_of_lines="\n\t".join(description_text_lines[10:])
             print(
                 f'\t{rest_of_lines}\n'
-                )
+                ,end="")
         if verbosity > 1:
-            print("\n")
+            print()
 
 class CommentAPI(object):
     def __init__(self, api):
@@ -298,10 +273,16 @@ class GroupAPI(object):
     def get_groupid(self, name):
         return next((group.id for group in self.all_groups if group.name == name), None)
 
+    def match_group(self, keyword):
+        """Find all groups whose name matches keyword"""
+        return [group for group in self.all_groups if 
+            keyword.lower() in group.name.lower()]
+
     def get_group(self, id):
+        """Fetches the group for the given group ID"""
         return next((group for group in self.all_groups if group.id == id), None)
-#        url = 'groups/%s' % id
-#        return Group(**self._api._get(url)['group'])
+        #url = 'groups/%s' % id
+        #return Group(**self._api._get(url)['group'])
 
 
 class RoleAPI(object):
@@ -362,7 +343,7 @@ class AgentAPI(object):
         }
 
         Passing None means that no named filter will be passed to
-        Freshdesk, which returns list of all agents
+        Freshservice, which returns list of all agents
 
         Multiple filters are AND'd together.
         """
@@ -386,20 +367,24 @@ class AgentAPI(object):
         return [Agent(**a) for a in agents]
 
     def match_agent(self, keyword):
-        """Find all agent IDs whose first_name, last_name, or email match keyword"""
+        """Find all agents whose first_name, last_name, or email match keyword"""
         return [agent for agent in self.all_agents if any(
-            [keyword in field for field in [agent.first_name, agent.last_name, agent.email]]
+            [keyword.lower() in field.lower() for field in [agent.first_name, agent.last_name, agent.email]]
             )]
 
-    def get_agent(self, agent_id):
+    def get_agent(self, id):
         """Fetches the agent for the given agent ID"""
-        url = 'agents/%s' % agent_id
-        return Agent(**self._api._get(url)['agent'])
+        return next((agent for agent in self.all_agents if agent.id == id), None)
+        #url = 'agents/%s' % agent_id
+        #return Agent(**self._api._get(url)['agent'])
 
     def update_agent(self, agent_id, **kwargs):
         """Updates an agent"""
         url = 'agents/%s' % agent_id
         agent = self._api._put(url, data=json.dumps(kwargs))['agent']
+        # TODO: update all_agents and cache
+        #with open(cachefile, mode='wb') as f:
+        #    pickle.dump(self.all_agents,f)
         return Agent(**agent)
 
     def delete_agent(self, agent_id):
@@ -438,7 +423,7 @@ class RequesterAPI(object):
         }
 
         Passing None means that no named filter will be passed to
-        Freshdesk, which returns list of all requesters
+        Freshservice, which returns list of all requesters
 
         Multiple filters are AND'd together.
         """
@@ -467,10 +452,17 @@ class RequesterAPI(object):
     def requester_ids(self, email):
         return [requester.id for requester in self.all_requesters if email in requester.primary_email]
 
-    def get_requester(self, requester_id):
+    def match_requester(self, keyword):
+        """Find all requesters whose first_name, last_name, or primary email match keyword"""
+        return [requester for requester in self.all_requesters if any(
+            [keyword.lower() in field.lower() for field in [requester.first_name, requester.last_name, requester.primary_email]]
+            )]
+
+    def get_requester(self, id):
         """Fetches the requester for the given requester ID"""
-        url = 'requesters/%s' % requester_id
-        return Requester(**self._api._get(url)['requester'])
+        return next((requester for requester in self.all_requesters if requester.id == id), None)
+        #url = 'requesters/%s' % id
+        #return Requester(**self._api._get(url)['requester'])
 
     def update_requester(self, requester_id, **kwargs):
         """Updates a requester"""
@@ -490,7 +482,7 @@ class API(object):
         """Creates a wrapper to perform API actions.
 
         Arguments:
-          domain:    the Freshdesk domain (not custom). e.g. company.freshdesk.com
+          domain:    the Freshservice domain (not custom). e.g. company.freshservice.com
           api_key:   the API key
 
         Instances:
@@ -508,7 +500,7 @@ class API(object):
         if cachedir is not None:
             self.cachedir = Path(cachedir)
         else:
-            self.cachedir = Path(Path.home(),".freshdesk")
+            self.cachedir = Path(Path.home(),".freshservice")
         if not self.cachedir.exists():
             try:
                 os.mkdir(self.cachedir)
@@ -524,7 +516,7 @@ class API(object):
         self.ticket_fields = TicketFieldAPI(self)
 
         if domain.find('freshservice.com') < 0:
-            raise AttributeError('Freshdesk v2 API works only via Freshdesk'
+            raise AttributeError('Freshservice v2 API works only via Freshservice'
                                  'domains and not via custom CNAMEs')
         self.domain = domain
 
@@ -546,32 +538,32 @@ class API(object):
         except ValueError:
             j = {}
 
-        error_message = 'Freshdesk Request Failed'
+        error_message = 'Freshservice Request Failed'
         if 'errors' in j:
             error_message = '{}: {}'.format(j.get('description'), j.get('errors'))
         elif 'message' in j:
             error_message = j['message']
             
         if req.status_code == 400:
-            raise FreshdeskBadRequest(error_message)
+            raise FreshserviceBadRequest(error_message)
         elif req.status_code == 401:
-            raise FreshdeskUnauthorized(error_message)
+            raise FreshserviceUnauthorized(error_message)
         elif req.status_code == 403:
-            raise FreshdeskAccessDenied(error_message)
+            raise FreshserviceAccessDenied(error_message)
         elif req.status_code == 404:
-            raise FreshdeskNotFound(error_message)
+            raise FreshserviceNotFound(error_message)
         elif req.status_code == 429:
-            raise FreshdeskRateLimited(
+            raise FreshserviceRateLimited(
                 '429 Rate Limit Exceeded: API rate-limit has been reached until {} seconds. See '
                 'http://freshservice.com/api#ratelimit'.format(req.headers.get('Retry-After')))
         elif 500 < req.status_code < 600:
-            raise FreshdeskServerError('{}: Server Error'.format(req.status_code))
+            raise FreshserviceServerError('{}: Server Error'.format(req.status_code))
 
         # Catch any other errors
         try:
             req.raise_for_status()
         except HTTPError as e:
-            raise FreshdeskError("{}: {}".format(e, j))
+            raise FreshserviceError("{}: {}".format(e, j))
 
         return j
 

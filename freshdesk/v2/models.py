@@ -130,10 +130,10 @@ class Agent(FreshdeskModel):
 
 class Requester(FreshdeskModel):
     def __str__(self):
-        return '{} {}'.format(self.first_name, self.last_name)
+        return '{} {} <{}>'.format(self.first_name, self.last_name, self.primary_email)
 
     def __repr__(self):
-        return '<Requester #{} \'{} {}\'>'.format(self.id, self.first_name, self.last_name)
+        return '<Requester #{} \'{} {}\' {}>'.format(self.id, self.first_name, self.last_name, self.primary_email)
 
 class Role(FreshdeskModel):
     def __str__(self):
