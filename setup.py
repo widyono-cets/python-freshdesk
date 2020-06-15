@@ -9,7 +9,7 @@ setup(
     author='Sam Kingston',
     author_email='sam@sjkwi.com.au',
     description='An API for the Freshdesk helpdesk',
-    url='https://github.com/sjkingo/python-freshdesk',
+    url='https://github.com/widyono-cets/python-freshdesk.git@python-freshservice-0.1',
     install_requires=['requests', 'python-dateutil'],
     packages=find_packages(),
 )
