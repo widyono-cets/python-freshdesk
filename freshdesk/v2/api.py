@@ -195,21 +195,51 @@ class TicketAPI(object):
 
         return [Ticket(**t) for t in tickets]
 
-    def summarize_ticket(self, ticket):
+    def summarize_ticket(self, ticket, verbosity=0):
         if ticket.responder_id is None:
             agent = "Unassigned"
         else:
             agent = self._api.agents.get_agent(ticket.responder_id)
         print(
             f'Ticket #{ticket.id} -> {self._api._gui_prefix}tickets/{ticket.id}\n'
-            f'\tGroup: {self._api.groups.get_group(ticket.group_id)}\n'
-            f'\tSubject: {ticket.subject}\n'
-            f'\tCreated at: {ticket.created_at}\n'
-            f'\tStatus: {ticket.status}\n'
-            f'\tRequester: {self._api.requesters.requester(ticket.requester_id)}\n'
-            f'\tAgent: {agent}\n'
-            f'\tDescription:\n{ticket.description_text}\n\n'
             )
+        if verbosity > 0:
+            print(
+                f'\tSubject: {ticket.subject}\n'
+                f'\tRequester: {self._api.requesters.requester(ticket.requester_id)}\n'
+                f'\tCreated at: {ticket.created_at}\n'
+                )
+        if verbosity > 2:
+            print(
+                f'\tUpdated at: {ticket.updated_at}\n'
+                f'\tTo_Emails: {to_emails}\n'
+                f'\tCC_Emails: {cc_emails}\n'
+                )
+        if verbosity > 1:
+            print(
+                f'\tGroup: {self._api.groups.get_group(ticket.group_id)}\n'
+                f'\tStatus: {ticket.status}\n'
+                f'\tAgent: {agent}\n'
+                )
+        if verbosity > 2:
+            print(
+                f'\tDue by: {due_by}\n'
+                f'\tDeleted: {deleted}\n'
+                )
+        # always print this lengthy field at the end of the output
+        description_text_lines=ticket.description_text.split("\n")
+        if verbosity > 1:
+            first_10_lines="\n\t".join(description_text_lines[0:10])
+            print(
+                f'\tDescription:\n\t{first_10_lines}'
+                )
+        if verbosity > 2 and len(description_text_lines)>10:
+            rest_of_lines="\n\t".join(description_text_lines[10:])
+            print(
+                f'\t{rest_of_lines}\n'
+                )
+        if verbosity > 1:
+            print("\n")
 
 class CommentAPI(object):
     def __init__(self, api):
