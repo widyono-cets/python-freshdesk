@@ -1,14 +1,13 @@
 # python-freshdesk
 
-[![Build Status](https://travis-ci.org/sjkingo/python-freshdesk.svg)](https://travis-ci.org/sjkingo/python-freshdesk)
-[![Coverage Status](https://img.shields.io/coveralls/sjkingo/python-freshdesk.svg)](https://coveralls.io/r/sjkingo/python-freshdesk)
-[![Latest version](https://img.shields.io/pypi/v/python-freshdesk.svg)](https://pypi.python.org/pypi/python-freshdesk)
+PLEASE NOTE: This file has not yet been fully updated to reflect this Freshservice fork's changes.
 
-A library for the [Freshdesk](http://freshdesk.com/) helpdesk system for Python 2.7 and 3.6+.
 
-There is support for a limited subset of features, using either Freshdesk API v1 or v2.
+A library for the [Freshservice](http://freshservice.com/) helpdesk system for Python 2.7 and 3.6+.
 
-After the deprecation of Freshdesk V1 API, library uses V2 API only.
+There is support for a limited subset of features, using either Freshservice API v1 or v2.
+
+After the deprecation of Freshservice V1 API, library uses V2 API only.
 
 Support for the v2 API includes the following features:
 * [Tickets](http://developer.freshdesk.com/api/#tickets)
@@ -18,7 +17,6 @@ Support for the v2 API includes the following features:
   - [Delete](http://developer.freshdesk.com/api/#delete_a_ticket)
   - [Create OutBound Email](http://developer.freshdesk.com/api/#create_outbound_email)
   - [List](http://developer.freshdesk.com/api/#list_all_tickets)
-  - [Filter](https://developer.freshdesk.com/api/#filter_tickets) (as of 1.2.6)
   - [List Time Entries](https://developers.freshdesk.com/api/#list_all_ticket_timeentries) (as of 1.2.4)
   - Custom ticket fields (as of 1.1.1)
 * [Ticket Fields](http://developer.freshdesk.com/api/#ticket_fields)
@@ -81,24 +79,24 @@ without changing these.
 
 ```python
 >>> from freshdesk.api import API
->>> a = API('company.freshdesk.com', 'q8dnkjaS554Aol21dmnas9d92')
+>>> a = API('company.freshservice.com', 'q8dnkjaS554Aol21dmnas9d92')
 ```
 
 To find your API key, follow Freshdesk's step-by-step solution article
 [How to find your API key](https://support.freshdesk.com/support/solutions/articles/215517).
 
-By default, API v2 is used after the deprecation of Freshdesk V1 API
+By default, API v2 is used after the deprecation of Freshservice V1 API
 
 ```python
->>> a = API('company.freshdesk.com', 'q8dnkjaS554Aol21dmnas9d92', version=2)
+>>> a = API('company.freshservice.com', 'q8dnkjaS554Aol21dmnas9d92', version=2)
 ```
 
-The `API` class provides access to all the methods exposed by the Freshdesk API.
+The `API` class provides access to all the methods exposed by the Freshservice API.
 
 Optionally, the API v2 can be given SSL verification and/or proxy settings to obey for all requests:
 
 ```python
->>> a = API('company.freshdesk.com', 'q8dnkjaS554Aol21dmnas9d92', verify=False)
+>>> a = API('company.freshservice.com', 'q8dnkjaS554Aol21dmnas9d92', verify=False)
 ```
 
 ```python
@@ -106,7 +104,7 @@ Optionally, the API v2 can be given SSL verification and/or proxy settings to ob
 ...     'http': 'http://example.proxy:8000',
 ...     'https': 'https://example.proxy:8443'
 ... }
->>> a = API('company.freshdesk.com', 'q8dnkjaS554Aol21dmnas9d92', proxies=proxies)
+>>> a = API('company.freshservice.com', 'q8dnkjaS554Aol21dmnas9d92', proxies=proxies)
 ```
 
 ### Tickets (API v2)
