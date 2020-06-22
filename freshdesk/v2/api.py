@@ -20,22 +20,22 @@ class TicketAPI(object):
         self._api = api
 
     def source_name_to_id(self, name):
-        return Ticket.sources.index(name)
+        return ticket_sources.index(name)
 
     def source_id_to_name(self, id):
-        return Ticket.sources[id]
+        return ticket_sources[id]
 
     def status_name_to_id(self, name):
-        return Ticket.statuses.index(name)
+        return ticket_statuses.index(name)
 
     def status_id_to_name(self, id):
-        return Ticket.statuses[id]
+        return ticket_statuses[id]
 
     def priority_name_to_id(self, name):
-        return Ticket.priorities.index(name)
+        return ticket_priorities.index(name)
 
     def priority_id_to_name(self, id):
-        return Ticket.priorties[id]
+        return ticket_priorties[id]
 
     def get_ticket(self, ticket_id):
         """Fetches the ticket for the given ticket ID"""
