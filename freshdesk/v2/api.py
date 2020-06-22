@@ -11,7 +11,7 @@ from freshdesk.v2.errors import (
     FreshserviceAccessDenied, FreshserviceBadRequest, FreshserviceError, FreshserviceNotFound, FreshserviceRateLimited,
     FreshserviceServerError, FreshserviceUnauthorized,
 )
-from freshdesk.v2.models import Agent, Comment, Group, Role, Ticket, TicketField, Requester
+from freshdesk.v2.models import Agent, Comment, Group, Role, Ticket, TicketField, Requester, ticket_statuses, ticket_priorities, ticket_sources
 
 from datetime import datetime, timedelta
 
@@ -52,8 +52,8 @@ class TicketAPI(object):
         """
 
         url = 'tickets'
-        status = kwargs.get('status', 2)
-        priority = kwargs.get('priority', 1)
+        status = kwargs.get('status', 2)         # magic default value of 2 = Open
+        priority = kwargs.get('priority', 1)     # magic default value of 1 = Low
         data = {
             'subject': subject,
             'status': status,

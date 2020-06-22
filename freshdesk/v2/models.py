@@ -1,5 +1,38 @@
 import dateutil.parser
 
+# https://api.freshservice.com/v2/#update_ticket_priority
+ticket_statuses = [
+        None,
+        None,              # 1
+        'Open',            # 2
+        'Pending',         # 3
+        'Resolved',        # 4
+        'Closed',          # 5
+        None               # 6
+    ]
+ticket_priorities = [
+        None,
+        'Low',             # 1
+        'Medium',          # 2
+        'High',            # 3
+        'Urgent'           # 4
+    ]
+ticket_sources = [
+        None,
+        'Email',           # 1
+        'Portal',          # 2
+        'Phone',           # 3
+        'Chat',            # 4
+        'Feedback Widget', # 5
+        'Yammer',          # 6
+        'AWS Cloudwatch',  # 7
+        'Pagerduty',       # 8
+        'Walkup',          # 9
+        'Slack'            # 10
+        ]
+
+def extend_ticket_statuses(new_statuses):
+    ticket_statuses.extend(new_statuses)
 
 class FreshdeskModel(object):
     _keys = None
@@ -42,36 +75,6 @@ class TicketField(FreshdeskModel):
 
 class Ticket(FreshdeskModel):
 
-    # https://api.freshservice.com/v2/#update_ticket_priority
-    statuses = [
-        None,
-        None,
-        'Open',            # 2
-        'Pending',         # 3
-        'Resolved',        # 4
-        'Closed'           # 5
-    ]
-    priorities = [
-        None,
-        'Low',             # 1
-        'Medium',          # 2
-        'High',            # 3
-        'Urgent'           # 4
-    ]
-    sources = [
-        None,
-        'Email',           # 1
-        'Portal',          # 2
-        'Phone',           # 3
-        'Chat',            # 4
-        'Feedback Widget', # 5
-        'Yammer',          # 6
-        'AWS Cloudwatch',  # 7
-        'Pagerduty',       # 8
-        'Walkup',          # 9
-        'Slack'            # 10
-        ]
-
     def __str__(self):
         return self.subject
 
@@ -81,21 +84,21 @@ class Ticket(FreshdeskModel):
     @property
     def priority(self):
         try:
-            return self.priorities[self._priority]
+            return ticket_priorities[self._priority]
         except KeyError:
             return 'priority_{}'.format(self._priority)
 
     @property
     def status(self):
         try:
-            return self.statuses[self._status]
+            return ticket_statuses[self._status]
         except KeyError:
             return 'status_{}'.format(self._status)
 
     @property
     def source(self):
         try:
-            return self.sources[self._source]
+            return ticket_sources[self._source]
         except KeyError:
             return 'source_{}'.format(self._source)
 
