@@ -236,13 +236,13 @@ class ConversationAPI(object):
         url = 'tickets/%d/notes' % ticket_id
         data = {'body': body}
         data.update(kwargs)
-        return Conversation(**self._api._post(url, data=json.dumps(data)))
+        return Conversation(**self._api._post(url, data=json.dumps(data))['conversation'])
 
     def create_reply(self, ticket_id, body, **kwargs):
         url = 'tickets/%d/reply' % ticket_id
         data = {'body': body}
         data.update(kwargs)
-        return Conversation(**self._api._post(url, data=json.dumps(data)))
+        return Conversation(**self._api._post(url, data=json.dumps(data))['conversation'])
 
 
 class GroupAPI(object):
