@@ -41,9 +41,11 @@ class TicketAPI(object):
     def priority_id_to_name(self, id):
         return ticket_priorties[id]
 
-    def get_ticket(self, ticket_id):
+    def get_ticket(self, ticket_id, include=None):
         """Fetches the ticket for the given ticket ID"""
         url = 'tickets/%d' % ticket_id
+        if include:
+            url = url + f"?include={include}"
         ticket = self._api._get(url)['ticket']
         return Ticket(**ticket)
 
@@ -182,6 +184,13 @@ class TicketAPI(object):
         print(
             f'Ticket #{ticket.id} -> {self._api._gui_prefix}tickets/{ticket.id}\n'
             ,end="")
+        if hasattr(ticket, 'related_tickets') and verbosity > 0:
+            related = ticket.related_tickets
+            if 'child_ids' in related:
+                for child_id in related['child_ids']:
+                    print(f"\tChild ticket #{child_id}")
+            if 'parent_id' in related:
+                print(f"\tParent ticket #{related['parent_id']}")
         if verbosity > 0:
             print(
                 f'\tSubject: {ticket.subject}\n'
