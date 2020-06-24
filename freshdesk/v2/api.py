@@ -11,9 +11,13 @@ from freshdesk.v2.errors import (
     FreshserviceAccessDenied, FreshserviceBadRequest, FreshserviceError, FreshserviceNotFound, FreshserviceRateLimited,
     FreshserviceServerError, FreshserviceUnauthorized,
 )
-from freshdesk.v2.models import Agent, Comment, Group, Role, Ticket, TicketField, Requester, ticket_statuses, ticket_priorities, ticket_sources
+from freshdesk.v2.models import Agent, Conversation, Group, Role, Ticket, TicketField, Requester, ticket_statuses, ticket_priorities, ticket_sources, conversation_sources
 
 from datetime import datetime, timedelta
+
+from textwrap import TextWrapper
+
+tw = TextWrapper(width=80,initial_indent=12*' ',subsequent_indent=12*' ')
 
 class TicketAPI(object):
     def __init__(self, api):
@@ -187,6 +191,7 @@ class TicketAPI(object):
         if verbosity > 2:
             print(
                 f'\tUpdated at: {ticket.updated_at}\n'
+                f'\tSource: {ticket.source}\n'
                 f'\tTo_Emails: {ticket.to_emails}\n'
                 f'\tCC_Emails: {ticket.cc_emails}\n'
                 ,end="")
@@ -202,42 +207,33 @@ class TicketAPI(object):
                 f'\tDeleted: {ticket.deleted}\n'
                 ,end="")
         # always print this lengthy field at the end of the output
-        description_text_lines=ticket.description_text.split("\n")
+        tw.max_lines = 5 if verbosity < 3 else None
         if verbosity > 1:
-            first_10_lines="\n\t".join(description_text_lines[0:10])
-            print(
-                f'\tDescription:\n\t{first_10_lines}\n'
-                ,end="")
-        if verbosity > 2 and len(description_text_lines)>10:
-            rest_of_lines="\n\t".join(description_text_lines[10:])
-            print(
-                f'\t{rest_of_lines}\n'
-                ,end="")
-        if verbosity > 1:
-            print()
+            print(f'\tDescription:')
+            print(tw.fill(ticket.description_text))
 
-class CommentAPI(object):
+class ConversationAPI(object):
     def __init__(self, api):
         self._api = api
 
-    def list_comments(self, ticket_id):
+    def list_conversations(self, ticket_id):
         url = 'tickets/%d/conversations' % ticket_id
-        comments = []
+        conversations = []
         for c in self._api._get(url)['conversations']:
-            comments.append(Comment(**c))
-        return comments
+            conversations.append(Conversation(**c))
+        return conversations
 
     def create_note(self, ticket_id, body, **kwargs):
         url = 'tickets/%d/notes' % ticket_id
         data = {'body': body}
         data.update(kwargs)
-        return Comment(**self._api._post(url, data=json.dumps(data)))
+        return Conversation(**self._api._post(url, data=json.dumps(data)))
 
     def create_reply(self, ticket_id, body, **kwargs):
         url = 'tickets/%d/reply' % ticket_id
         data = {'body': body}
         data.update(kwargs)
-        return Comment(**self._api._post(url, data=json.dumps(data)))
+        return Conversation(**self._api._post(url, data=json.dumps(data)))
 
 
 class GroupAPI(object):
@@ -508,7 +504,7 @@ class API(object):
                 raise AttributeError('Cannot create cache directory')
 
         self.tickets = TicketAPI(self)
-        self.comments = CommentAPI(self)
+        self.conversations = ConversationAPI(self)
         self.groups = GroupAPI(self, cachefile=Path(self.cachedir, "groups"), updatecache=updatecache)
         self.agents = AgentAPI(self, cachefile=Path(self.cachedir, "agents"), updatecache=updatecache)
         self.requesters = RequesterAPI(self, cachefile=Path(self.cachedir, "requesters"), updatecache=updatecache)

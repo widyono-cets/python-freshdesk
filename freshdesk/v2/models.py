@@ -30,6 +30,15 @@ ticket_sources = [
         'Walkup',          # 9
         'Slack'            # 10
         ]
+conversation_sources = [
+        'Email',           # 0
+        'Form',            # 1
+        'Note',            # 2
+        'Status',          # 3
+        'Meta',            # 4
+        'Feedback',        # 5
+        'Forward_Email'    # 6
+        ]
 
 def extend_ticket_statuses(new_statuses):
     ticket_statuses.extend(new_statuses)
@@ -110,18 +119,19 @@ class Group(FreshdeskModel):
         return '<Group \'{}\' -> {}>'.format(self.name, self.id)
 
 
-class Comment(FreshdeskModel):
+class Conversation(FreshdeskModel):
     def __str__(self):
         return self.body_text
 
     def __repr__(self):
-        return '<Comment for Ticket #{}>'.format(self.ticket_id)
+        return '<Conversation for Ticket #{}>'.format(self.ticket_id)
 
     @property
     def source(self):
-        _s = {0: 'reply', 2: 'note', 5: 'twitter', 6: 'survey', 7: 'facebook',
-              8: 'email', 9: 'phone', 10: 'mobihelp', 11: 'e-commerce'}
-        return _s[self._source]
+        try:
+            return conversation_sources[self._source]
+        except KeyError:
+            return 'conversation_{}'.format(self._source)
 
 
 class Agent(FreshdeskModel):
