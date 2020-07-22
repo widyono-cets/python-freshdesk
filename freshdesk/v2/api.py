@@ -524,7 +524,7 @@ class API(object):
         if cachedir is not None:
             self.cachedir = Path(cachedir)
         else:
-            self.cachedir = Path(os.environ.get('FRESHSERVICE_CACHEDIR', Path(Path.home(),".freshservice")))
+            self.cachedir = Path(os.environ.get('FRESHSERVICE_CACHEDIR', Path(Path.home(),".cache","freshservice")))
         self.cachemode = int(os.environ.get('FRESHSERVICE_CACHEMODE', '0o600'),base=0)
         self.cachegroup = os.environ.get('FRESHSERVICE_CACHEGROUP')
         if not self.cachedir.exists():
