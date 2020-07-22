@@ -260,8 +260,8 @@ class GroupAPI(object):
                 pickle.dump(self.all_groups,f)
             if new_cachefile:
                 os.chmod(self._cachefile, self._api.cachemode)
-            if self._api.cachegroup:
-                shutil.chown(self._cachefile, group=self._api.cachegroup)
+                if self._api.cachegroup:
+                    shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
             with open(self._cachefile, mode='rb') as f:
                 self.all_groups = pickle.load(f)
@@ -342,8 +342,8 @@ class AgentAPI(object):
                 pickle.dump(self.all_agents,f)
             if new_cachefile:
                 os.chmod(self._cachefile, self._api.cachemode)
-            if self._api.cachegroup:
-                shutil.chown(self._cachefile, group=self._api.cachegroup)
+                if self._api.cachegroup:
+                    shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
             with open(self._cachefile, mode='rb') as f:
                 self.all_agents = pickle.load(f)
@@ -427,8 +427,8 @@ class RequesterAPI(object):
                 pickle.dump(self.all_requesters,f)
             if new_cachefile:
                 os.chmod(self._cachefile, self._api.cachemode)
-            if self._api.cachegroup:
-                shutil.chown(self._cachefile, group=self._api.cachegroup)
+                if self._api.cachegroup:
+                    shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
             with open(self._cachefile, mode='rb') as f:
                 self.all_requesters = pickle.load(f)
@@ -604,11 +604,12 @@ class API(object):
             f.write(f'{datetime.today().strftime("%Y%m%d_%H%M")} {self.ratelimit_remaining}')
         if new_apiusagefile:
             os.chmod(apiusagefile, self.cachemode)
+            if self.cachegroup:
+                shutil.chown(apiusagefile, group=self.cachegroup)
         if new_apiusagehistoryfile:
             os.chmod(apiusagehistoryfile, self.cachemode)
-        if self.cachegroup:
-            shutil.chown(apiusagefile, group=self.cachegroup)
-            shutil.chown(apiusagehistoryfile, group=self.cachegroup)
+            if self.cachegroup:
+                shutil.chown(apiusagehistoryfile, group=self.cachegroup)
 
         return j
 
