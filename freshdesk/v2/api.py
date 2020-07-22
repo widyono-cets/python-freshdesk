@@ -4,6 +4,8 @@ import requests
 from requests import HTTPError
 
 import os
+import stat
+import shutil
 from pathlib import Path
 import pickle
 
@@ -247,16 +249,19 @@ class ConversationAPI(object):
 
 class GroupAPI(object):
 
-    def __init__(self, api, cachefile=None, updatecache=False):
+    def __init__(self, api):
         self._api = api
-        self.cache = cachefile
+        self._cachefile = Path(self._api.cachedir, "groups")
         self.all_groups = None
-        if not cachefile.exists() or updatecache:
+        if not self._cachefile.exists() or self._api.updatecache:
             self.all_groups = self.list_groups()
-            with open(cachefile, mode='wb') as f:
+            with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_groups,f)
+            shutil.chmod(self._cachefile, self._api.cachemode)
+            if self._api.cachegroup:
+                shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
-            with open(cachefile, mode='rb') as f:
+            with open(self._cachefile, mode='rb') as f:
                 self.all_groups = pickle.load(f)
 
     def list_groups(self, **kwargs):
@@ -324,16 +329,19 @@ class TicketFieldAPI(object):
 
 class AgentAPI(object):
 
-    def __init__(self, api, cachefile=None, updatecache=False):
+    def __init__(self, api):
         self._api = api
-        self.cache = cachefile
+        self._cachefile = Path(self._api.cachedir, "agents")
         self.all_agents = None
-        if not cachefile.exists() or updatecache:
+        if not self._cachefile.exists() or self._api.updatecache:
             self.all_agents = self.list_agents()
-            with open(cachefile, mode='wb') as f:
+            with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_agents,f)
+            shutil.chmod(self._cachefile, self._api.cachemode)
+            if self._api.cachegroup:
+                shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
-            with open(cachefile, mode='rb') as f:
+            with open(self._cachefile, mode='rb') as f:
                 self.all_agents = pickle.load(f)
 
     def list_agents(self, **kwargs):
@@ -404,16 +412,19 @@ class AgentAPI(object):
 
 class RequesterAPI(object):
 
-    def __init__(self, api, cachefile=None, updatecache=False):
+    def __init__(self, api):
         self._api = api
-        self.cache = cachefile
+        self._cachefile = Path(self._api.cachedir, "requesters")
         self.all_requesters = None
-        if not cachefile.exists() or updatecache:
+        if not self._cachefile.exists() or self._api.updatecache:
             self.all_requesters = self.list_requesters()
-            with open(cachefile, mode='wb') as f:
+            with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_requesters,f)
+            shutil.chmod(self._cachefile, self._api.cachemode)
+            if self._api.cachegroup:
+                shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
-            with open(cachefile, mode='rb') as f:
+            with open(self._cachefile, mode='rb') as f:
                 self.all_requesters = pickle.load(f)
 
     def list_requesters(self, **kwargs):
@@ -502,21 +513,27 @@ class API(object):
         self._session.proxies = proxies
         self._session.headers = {'Content-Type': 'application/json'}
 
+        self.updatecache = updatecache
+        # priority order: cachedir parameter, FRESHSERVICE_CACHEDIR, home directory
         if cachedir is not None:
             self.cachedir = Path(cachedir)
         else:
-            self.cachedir = Path(Path.home(),".freshservice")
+            self.cachedir = Path(os.environ.get('FRESHSERVICE_CACHEDIR', Path(Path.home(),".freshservice")))
+        self.cachemode = os.environ.get('FRESHSERVICE_CACHEMODE', 0o600)
+        self.cachegroup = os.environ.get('FRESHSERVICE_CACHEGROUP')
         if not self.cachedir.exists():
             try:
-                os.mkdir(self.cachedir)
+                os.mkdir(self.cachedir, mode=os.environ.get('FRESHSERVICE_CACHEDIRMODE', 0o700))
             except:
-                raise AttributeError('Cannot create cache directory')
+                raise AttributeError(f'Cannot create cache directory {self.cachedir}')
+            if self.cachegroup:
+                shutil.chown(self.cachedir, self.cachegroup)
 
         self.tickets = TicketAPI(self)
         self.conversations = ConversationAPI(self)
-        self.groups = GroupAPI(self, cachefile=Path(self.cachedir, "groups"), updatecache=updatecache)
-        self.agents = AgentAPI(self, cachefile=Path(self.cachedir, "agents"), updatecache=updatecache)
-        self.requesters = RequesterAPI(self, cachefile=Path(self.cachedir, "requesters"), updatecache=updatecache)
+        self.groups = GroupAPI(self)
+        self.agents = AgentAPI(self)
+        self.requesters = RequesterAPI(self)
         self.roles = RoleAPI(self)
         self.ticket_fields = TicketFieldAPI(self)
 
@@ -527,6 +544,7 @@ class API(object):
 
         # dummy initial values to show they are not yet properly initialized via API call
         #   but integers will allow testing with simple integer expressions
+        # TODO: load from cache instead so we have a more accurate representation ("warm boot")
         self.ratelimit_remaining = 9999999999
         self.ratelimit_total     = 9999999999
         self.ratelimit_used      = 9999999999
@@ -569,6 +587,20 @@ class API(object):
             req.raise_for_status()
         except HTTPError as e:
             raise FreshserviceError("{}: {}".format(e, j))
+
+        apiusagefile=Path(self.cachedir, "apiusage")
+        with open(apiusagefile, mode='w') as f:
+            f.write(f"{self.ratelimit_remaining} API calls remaining")
+        os.chmod(apiusagefile, stat.S_IWGRP | os.stat(apiusagefile).st_mode)
+        apiusagehistoryfile=Path(self.cachedir, "apiusage.history")
+        with open(apiusagehistoryfile, mode='w+') as f:
+            f.write(f'{datetime.today().strftime("%Y%m%d_%H%M")} {self.ratelimit_remaining}')
+        os.chmod(apiusagehistoryfile, stat.S_IWGRP | os.stat(apiusagehistoryfile).st_mode)
+        shutil.chmod(apiusagefile, self.cachemode)
+        shutil.chmod(apiusagehistoryfile, self.cachemode)
+        if self.cachegroup:
+            shutil.chown(apiusagefile, group=self.cachegroup)
+            shutil.chown(apiusagehistoryfile, group=self.cachegroup)
 
         return j
 
