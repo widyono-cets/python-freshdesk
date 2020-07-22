@@ -523,7 +523,7 @@ class API(object):
         self.cachegroup = os.environ.get('FRESHSERVICE_CACHEGROUP')
         if not self.cachedir.exists():
             try:
-                os.mkdir(self.cachedir, mode=int(os.environ.get('FRESHSERVICE_CACHEDIRMODE', '0o700'),base=0)
+                os.mkdir(self.cachedir, mode=int(os.environ.get('FRESHSERVICE_CACHEDIRMODE', '0o700'),base=0))
             except:
                 raise AttributeError(f'Cannot create cache directory {self.cachedir}')
             if self.cachegroup:
