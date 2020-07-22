@@ -534,6 +534,10 @@ class API(object):
                 raise AttributeError(f'Cannot create cache directory {self.cachedir}')
             if self.cachegroup:
                 shutil.chown(self.cachedir, self.cachegroup)
+        self.apiusagefile=Path(self.cachedir, "apiusage")
+        self.apiusagehistoryfile=Path(self.cachedir, "apiusage.history")
+        self.new_apiusagefile=not self.apiusagefile.exists()
+        self.new_apiusagehistoryfile=not self.apiusagehistoryfile.exists()
 
         self.tickets = TicketAPI(self)
         self.conversations = ConversationAPI(self)
@@ -550,10 +554,13 @@ class API(object):
 
         # dummy initial values to show they are not yet properly initialized via API call
         #   but integers will allow testing with simple integer expressions
-        # TODO: load from cache instead so we have a more accurate representation ("warm boot")
-        self.ratelimit_remaining = 9999999999
-        self.ratelimit_total     = 9999999999
-        self.ratelimit_used      = 9999999999
+        if self.new_apiusagefile:
+            self.ratelimit_remaining = 9999999999
+            self.ratelimit_total     = 9999999999
+            self.ratelimit_used      = 9999999999
+        else:
+            with open(self.apiusagefile, mode='r') as f:
+                (self.ratelimit_remaining, self.ratelimit_total, self.ratelimit_used) = tuple(map(int, f.readlines()))
 
 
     def _action(self, req):
@@ -594,22 +601,20 @@ class API(object):
         except HTTPError as e:
             raise FreshserviceError("{}: {}".format(e, j))
 
-        apiusagefile=Path(self.cachedir, "apiusage")
-        new_apiusagefile=not apiusagefile.exists()
-        with open(apiusagefile, mode='w') as f:
-            f.write(f"{self.ratelimit_remaining} API calls remaining")
-        apiusagehistoryfile=Path(self.cachedir, "apiusage.history")
-        new_apiusagehistoryfile=not apiusagehistoryfile.exists()
-        with open(apiusagehistoryfile, mode='w+') as f:
-            f.write(f'{datetime.today().strftime("%Y%m%d_%H%M")} {self.ratelimit_remaining}')
-        if new_apiusagefile:
-            os.chmod(apiusagefile, self.cachemode)
+        with open(self.apiusagefile, mode='w') as f:
+            f.write(f"{self.ratelimit_remaining}\n")
+            f.write(f"{self.ratelimit_total}\n")
+            f.write(f"{self.ratelimit_used}\n")
+        with open(self.apiusagehistoryfile, mode='a') as f:
+            f.write(f'{datetime.today().strftime("%Y%m%d_%H%M")} {self.ratelimit_remaining}\n')
+        if self.new_apiusagefile:
+            os.chmod(self.apiusagefile, self.cachemode)
             if self.cachegroup:
-                shutil.chown(apiusagefile, group=self.cachegroup)
-        if new_apiusagehistoryfile:
-            os.chmod(apiusagehistoryfile, self.cachemode)
+                shutil.chown(self.apiusagefile, group=self.cachegroup)
+        if self.new_apiusagehistoryfile:
+            os.chmod(self.apiusagehistoryfile, self.cachemode)
             if self.cachegroup:
-                shutil.chown(apiusagehistoryfile, group=self.cachegroup)
+                shutil.chown(self.apiusagehistoryfile, group=self.cachegroup)
 
         return j
 
