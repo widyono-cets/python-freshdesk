@@ -257,7 +257,7 @@ class GroupAPI(object):
             self.all_groups = self.list_groups()
             with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_groups,f)
-            shutil.chmod(self._cachefile, self._api.cachemode)
+            os.chmod(self._cachefile, self._api.cachemode)
             if self._api.cachegroup:
                 shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
@@ -337,7 +337,7 @@ class AgentAPI(object):
             self.all_agents = self.list_agents()
             with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_agents,f)
-            shutil.chmod(self._cachefile, self._api.cachemode)
+            os.chmod(self._cachefile, self._api.cachemode)
             if self._api.cachegroup:
                 shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
@@ -420,7 +420,7 @@ class RequesterAPI(object):
             self.all_requesters = self.list_requesters()
             with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_requesters,f)
-            shutil.chmod(self._cachefile, self._api.cachemode)
+            os.chmod(self._cachefile, self._api.cachemode)
             if self._api.cachegroup:
                 shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
@@ -519,11 +519,11 @@ class API(object):
             self.cachedir = Path(cachedir)
         else:
             self.cachedir = Path(os.environ.get('FRESHSERVICE_CACHEDIR', Path(Path.home(),".freshservice")))
-        self.cachemode = os.environ.get('FRESHSERVICE_CACHEMODE', 0o600)
+        self.cachemode = int(os.environ.get('FRESHSERVICE_CACHEMODE', '0o600'),base=0)
         self.cachegroup = os.environ.get('FRESHSERVICE_CACHEGROUP')
         if not self.cachedir.exists():
             try:
-                os.mkdir(self.cachedir, mode=os.environ.get('FRESHSERVICE_CACHEDIRMODE', 0o700))
+                os.mkdir(self.cachedir, mode=int(os.environ.get('FRESHSERVICE_CACHEDIRMODE', '0o700'),base=0)
             except:
                 raise AttributeError(f'Cannot create cache directory {self.cachedir}')
             if self.cachegroup:
@@ -591,13 +591,11 @@ class API(object):
         apiusagefile=Path(self.cachedir, "apiusage")
         with open(apiusagefile, mode='w') as f:
             f.write(f"{self.ratelimit_remaining} API calls remaining")
-        os.chmod(apiusagefile, stat.S_IWGRP | os.stat(apiusagefile).st_mode)
         apiusagehistoryfile=Path(self.cachedir, "apiusage.history")
         with open(apiusagehistoryfile, mode='w+') as f:
             f.write(f'{datetime.today().strftime("%Y%m%d_%H%M")} {self.ratelimit_remaining}')
-        os.chmod(apiusagehistoryfile, stat.S_IWGRP | os.stat(apiusagehistoryfile).st_mode)
-        shutil.chmod(apiusagefile, self.cachemode)
-        shutil.chmod(apiusagehistoryfile, self.cachemode)
+        os.chmod(apiusagefile, self.cachemode)
+        os.chmod(apiusagehistoryfile, self.cachemode)
         if self.cachegroup:
             shutil.chown(apiusagefile, group=self.cachegroup)
             shutil.chown(apiusagehistoryfile, group=self.cachegroup)
