@@ -8,6 +8,7 @@ import stat
 import shutil
 from pathlib import Path
 import pickle
+import getpass
 
 from freshdesk.v2.errors import (
     FreshserviceAccessDenied, FreshserviceBadRequest, FreshserviceError, FreshserviceNotFound, FreshserviceRateLimited,
@@ -563,7 +564,7 @@ class API(object):
                 (self.ratelimit_remaining, self.ratelimit_total, self.ratelimit_used) = tuple(map(int, f.readlines()))
 
 
-    def _action(self, req):
+    def _action(self, req, url):
 
         self.ratelimit_remaining = req.headers['x-ratelimit-remaining']
         self.ratelimit_total = req.headers['x-ratelimit-total']
@@ -606,7 +607,7 @@ class API(object):
             f.write(f"{self.ratelimit_total}\n")
             f.write(f"{self.ratelimit_used}\n")
         with open(self.apiusagehistoryfile, mode='a') as f:
-            f.write(f'{datetime.today().strftime("%Y%m%d_%H%M")} {self.ratelimit_remaining}\n')
+            f.write(f'{datetime.today().strftime("%Y%m%d_%H%M")} {self.ratelimit_remaining} {getpass.getuser()} {url}\n')
         if self.new_apiusagefile:
             os.chmod(self.apiusagefile, self.cachemode)
             if self.cachegroup:
@@ -621,22 +622,22 @@ class API(object):
     def _get(self, url, params={}):
         """Wrapper around request.get() to use the API prefix. Returns a JSON response."""
         req = self._session.get(self._api_prefix + url, params=params)
-        return self._action(req)
+        return self._action(req, url)
 
     def _post(self, url, data={}, **kwargs):
         """Wrapper around request.post() to use the API prefix. Returns a JSON response."""
         req = self._session.post(self._api_prefix + url, data=data, **kwargs)
-        return self._action(req)
+        return self._action(req, url)
 
     def _put(self, url, data={}):
         """Wrapper around request.put() to use the API prefix. Returns a JSON response."""
         req = self._session.put(self._api_prefix + url, data=data)
-        return self._action(req)
+        return self._action(req, url)
 
     def _delete(self, url):
         """Wrapper around request.delete() to use the API prefix. Returns a JSON response."""
         req = self._session.delete(self._api_prefix + url)
-        return self._action(req)
+        return self._action(req, url)
 
 def age_to_utc(**kwargs):
     return (datetime.today() - timedelta(**kwargs)).isoformat()
