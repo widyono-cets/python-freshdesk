@@ -253,11 +253,13 @@ class GroupAPI(object):
         self._api = api
         self._cachefile = Path(self._api.cachedir, "groups")
         self.all_groups = None
-        if not self._cachefile.exists() or self._api.updatecache:
+        new_cachefile = not self._cachefile.exists()
+        if new_cachefile or self._api.updatecache:
             self.all_groups = self.list_groups()
             with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_groups,f)
-            os.chmod(self._cachefile, self._api.cachemode)
+            if new_cachefile:
+                os.chmod(self._cachefile, self._api.cachemode)
             if self._api.cachegroup:
                 shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
@@ -333,11 +335,13 @@ class AgentAPI(object):
         self._api = api
         self._cachefile = Path(self._api.cachedir, "agents")
         self.all_agents = None
-        if not self._cachefile.exists() or self._api.updatecache:
+        new_cachefile = not self._cachefile.exists()
+        if new_cachefile or self._api.updatecache:
             self.all_agents = self.list_agents()
             with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_agents,f)
-            os.chmod(self._cachefile, self._api.cachemode)
+            if new_cachefile:
+                os.chmod(self._cachefile, self._api.cachemode)
             if self._api.cachegroup:
                 shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
@@ -416,11 +420,13 @@ class RequesterAPI(object):
         self._api = api
         self._cachefile = Path(self._api.cachedir, "requesters")
         self.all_requesters = None
-        if not self._cachefile.exists() or self._api.updatecache:
+        new_cachefile = not self._cachefile.exists()
+        if new_cachefile or self._api.updatecache:
             self.all_requesters = self.list_requesters()
             with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_requesters,f)
-            os.chmod(self._cachefile, self._api.cachemode)
+            if new_cachefile:
+                os.chmod(self._cachefile, self._api.cachemode)
             if self._api.cachegroup:
                 shutil.chown(self._cachefile, group=self._api.cachegroup)
         else:
@@ -589,13 +595,17 @@ class API(object):
             raise FreshserviceError("{}: {}".format(e, j))
 
         apiusagefile=Path(self.cachedir, "apiusage")
+        new_apiusagefile=not apiusagefile.exists()
         with open(apiusagefile, mode='w') as f:
             f.write(f"{self.ratelimit_remaining} API calls remaining")
         apiusagehistoryfile=Path(self.cachedir, "apiusage.history")
+        new_apiusagehistoryfile=not apiusagehistoryfile.exists()
         with open(apiusagehistoryfile, mode='w+') as f:
             f.write(f'{datetime.today().strftime("%Y%m%d_%H%M")} {self.ratelimit_remaining}')
-        os.chmod(apiusagefile, self.cachemode)
-        os.chmod(apiusagehistoryfile, self.cachemode)
+        if new_apiusagefile:
+            os.chmod(apiusagefile, self.cachemode)
+        if new_apiusagehistoryfile:
+            os.chmod(apiusagehistoryfile, self.cachemode)
         if self.cachegroup:
             shutil.chown(apiusagefile, group=self.cachegroup)
             shutil.chown(apiusagehistoryfile, group=self.cachegroup)
