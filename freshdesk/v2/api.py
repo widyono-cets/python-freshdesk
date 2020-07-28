@@ -25,6 +25,14 @@ tw = TextWrapper(width=80,initial_indent=12*' ',subsequent_indent=12*' ')
 class TicketAPI(object):
     def __init__(self, api):
         self._api = api
+        self._cachedir = Path(self._api.cachedir, "tickets")
+        if not self._cachedir.exists():
+            try:
+                os.mkdir(self._cachedir, mode=self._api.cachedirmode)
+            except:
+                raise AttributeError(f'Cannot create cache directory {self._cachedir}')
+            if self._api.cachegroup:
+                shutil.chown(self._cachedir, group=self._api.cachegroup)
 
     def source_name_to_id(self, name):
         return ticket_sources.index(name)
@@ -528,13 +536,14 @@ class API(object):
             self.cachedir = Path(os.environ.get('FRESHSERVICE_CACHEDIR', Path(Path.home(),".cache","freshservice")))
         self.cachemode = int(os.environ.get('FRESHSERVICE_CACHEMODE', '0o600'),base=0)
         self.cachegroup = os.environ.get('FRESHSERVICE_CACHEGROUP')
+        self.cachedirmode = int(os.environ.get('FRESHSERVICE_CACHEDIRMODE', '0o700'),base=0)
         if not self.cachedir.exists():
             try:
-                os.mkdir(self.cachedir, mode=int(os.environ.get('FRESHSERVICE_CACHEDIRMODE', '0o700'),base=0))
+                os.mkdir(self.cachedir, mode=self.cachedirmode)
             except:
                 raise AttributeError(f'Cannot create cache directory {self.cachedir}')
             if self.cachegroup:
-                shutil.chown(self.cachedir, self.cachegroup)
+                shutil.chown(self.cachedir, group=self.cachegroup)
         self.apiusagefile=Path(self.cachedir, "apiusage")
         self.apiusagehistoryfile=Path(self.cachedir, "apiusage.history")
         self.new_apiusagefile=not self.apiusagefile.exists()
