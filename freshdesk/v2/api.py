@@ -53,12 +53,41 @@ class TicketAPI(object):
     def priority_id_to_name(self, id):
         return ticket_priorties[id]
 
+    def id_to_cache_path(self, id):
+        tid=f'{id:08}'
+        # max 100 subdirectories at any level
+        p=Path(tid[-2:],tid[-4:-2],tid[-6:-4],tid[:-6])
+        q=Path(self._cachedir)
+        for x in p.parts:
+            q=Path(q,x)
+            if not q.exists():
+                try:
+                    os.mkdir(q)
+                    os.chmod(q, self._api.cachedirmode)
+                except:
+                    raise AttributeError(f'Cannot create cache directory {q}')
+                if self._api.cachegroup:
+                    shutil.chown(q, group=self._api.cachegroup)
+        return Path(self._cachedir, p, str(id))
+
     def get_ticket(self, ticket_id, include=None):
         """Fetches the ticket for the given ticket ID"""
-        url = 'tickets/%d' % ticket_id
-        if include:
-            url = url + f"?include={include}"
-        ticket = self._api._get(url)['ticket']
+        _ticketcachefile = self.id_to_cache_path(ticket_id)
+        new_ticketcachefile = not _ticketcachefile.exists()
+        if new_ticketcachefile or self._api.updatecache:
+            url = 'tickets/%d' % ticket_id
+            if include:
+                url = url + f"?include={include}"
+            ticket = self._api._get(url)['ticket']
+            with open(_ticketcachefile, mode='wb') as f:
+                pickle.dump(ticket,f)
+            if new_ticketcachefile:
+                os.chmod(_ticketcachefile, self._api.cachemode)
+                if self._api.cachegroup:
+                    shutil.chown(_ticketcachefile, group=self._api.cachegroup)
+        else:
+            with open(_ticketcachefile, mode='rb') as f:
+                ticket = pickle.load(f)
         return Ticket(**ticket)
 
     def create_ticket(self, subject, **kwargs):
@@ -174,7 +203,22 @@ class TicketAPI(object):
                 break
             page += 1
 
-        return [Ticket(**t) for t in tickets]
+        all_selected_tickets=[]
+        # Currently we force update cache for all these tickets
+        # TODO: if self._api.updatecache is false, pull all from cache (need
+        #   to locally implement filters / views)
+        for ticket in tickets:
+            _ticketcachefile = self.id_to_cache_path(ticket['id'])
+            new_ticketcachefile = not _ticketcachefile.exists()
+            with open(_ticketcachefile, mode='wb') as f:
+                pickle.dump(ticket,f)
+            all_selected_tickets.append(Ticket(**ticket))
+            if new_ticketcachefile:
+                os.chmod(_ticketcachefile, self._api.cachemode)
+                if self._api.cachegroup:
+                    shutil.chown(_ticketcachefile, group=self._api.cachegroup)
+
+        return all_selected_tickets
 
     def list_new_and_my_open_tickets(self):
         """List all new and open tickets."""
