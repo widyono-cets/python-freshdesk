@@ -28,7 +28,8 @@ class TicketAPI(object):
         self._cachedir = Path(self._api.cachedir, "tickets")
         if not self._cachedir.exists():
             try:
-                os.mkdir(self._cachedir, mode=self._api.cachedirmode)
+                os.mkdir(self._cachedir)
+                os.chmod(self._cachedir, self._api.cachedirmode)
             except:
                 raise AttributeError(f'Cannot create cache directory {self._cachedir}')
             if self._api.cachegroup:
@@ -539,7 +540,8 @@ class API(object):
         self.cachedirmode = int(os.environ.get('FRESHSERVICE_CACHEDIRMODE', '0o700'),base=0)
         if not self.cachedir.exists():
             try:
-                os.mkdir(self.cachedir, mode=self.cachedirmode)
+                os.mkdir(self.cachedir)
+                os.chmod(self.cachedir, self.cachedirmode)
             except:
                 raise AttributeError(f'Cannot create cache directory {self.cachedir}')
             if self.cachegroup:
