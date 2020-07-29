@@ -239,6 +239,10 @@ class TicketAPI(object):
         return self.list_tickets(filter_name='deleted')
 
     def summarize_ticket(self, ticket, verbosity=0):
+        if ticket is None:
+            if verbosity > 2:
+                print("summarize_ticket was passed an empty ticket object")
+            return
         if ticket.responder_id is None:
             agent = "Unassigned"
         else:
