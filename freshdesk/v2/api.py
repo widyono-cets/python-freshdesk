@@ -78,7 +78,10 @@ class TicketAPI(object):
             url = 'tickets/%d' % ticket_id
             if include:
                 url = url + f"?include={include}"
-            ticket = self._api._get(url)['ticket']
+            try:
+                ticket = self._api._get(url)['ticket']
+            except FreshserviceNotFound:
+                ticket = None
             with open(_ticketcachefile, mode='wb') as f:
                 pickle.dump(ticket,f)
             if new_ticketcachefile:
@@ -88,7 +91,10 @@ class TicketAPI(object):
         else:
             with open(_ticketcachefile, mode='rb') as f:
                 ticket = pickle.load(f)
-        return Ticket(**ticket)
+        if ticket:
+            return Ticket(**ticket)
+        else:
+            return None
 
     def create_ticket(self, subject, **kwargs):
         """
