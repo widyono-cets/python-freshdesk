@@ -631,10 +631,6 @@ class API(object):
 
     def _action(self, req, url):
 
-        self.ratelimit_remaining = req.headers['x-ratelimit-remaining']
-        self.ratelimit_total = req.headers['x-ratelimit-total']
-        self.ratelimit_used = req.headers['x-ratelimit-used-currentrequest']
-
         try:
             j = req.json()
         except ValueError:
@@ -666,6 +662,10 @@ class API(object):
             req.raise_for_status()
         except HTTPError as e:
             raise FreshserviceError("{}: {}".format(e, j))
+
+        self.ratelimit_remaining = req.headers['x-ratelimit-remaining']
+        self.ratelimit_total = req.headers['x-ratelimit-total']
+        self.ratelimit_used = req.headers['x-ratelimit-used-currentrequest']
 
         with open(self.apiusagefile, mode='w') as f:
             f.write(f"{self.ratelimit_remaining}\n")
