@@ -74,7 +74,7 @@ class TicketAPI(object):
         """Fetches the ticket for the given ticket ID"""
         _ticketcachefile = self.id_to_cache_path(ticket_id)
         new_ticketcachefile = not _ticketcachefile.exists()
-        if new_ticketcachefile or self._api.updatecache:
+        if new_ticketcachefile or any(x in ['tickets','all'] for x in self._api.updatecache):
             url = 'tickets/%d' % ticket_id
             if include:
                 url = url + f"?include={include}"
@@ -318,7 +318,7 @@ class GroupAPI(object):
         self._cachefile = Path(self._api.cachedir, "groups")
         self.all_groups = None
         new_cachefile = not self._cachefile.exists()
-        if new_cachefile or self._api.updatecache:
+        if new_cachefile or any(x in ['groups', 'all'] for x in self._api.updatecache):
             self.all_groups = self.list_groups()
             with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_groups,f)
@@ -400,7 +400,7 @@ class AgentAPI(object):
         self._cachefile = Path(self._api.cachedir, "agents")
         self.all_agents = None
         new_cachefile = not self._cachefile.exists()
-        if new_cachefile or self._api.updatecache:
+        if new_cachefile or any(x in ['agents', 'all'] for x in self._api.updatecache):
             self.all_agents = self.list_agents()
             with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_agents,f)
@@ -485,7 +485,7 @@ class RequesterAPI(object):
         self._cachefile = Path(self._api.cachedir, "requesters")
         self.all_requesters = None
         new_cachefile = not self._cachefile.exists()
-        if new_cachefile or self._api.updatecache:
+        if new_cachefile or any(x in ['requesters', 'all'] for x in self._api.updatecache):
             self.all_requesters = self.list_requesters()
             with open(self._cachefile, mode='wb') as f:
                 pickle.dump(self.all_requesters,f)
@@ -564,7 +564,7 @@ class RequesterAPI(object):
 
 class API(object):
 
-    def __init__(self, domain, api_key, verify=True, proxies=None, cachedir=None, updatecache=False):
+    def __init__(self, domain, api_key, verify=True, proxies=None, cachedir=None, updatecache=[]):
         """Creates a wrapper to perform API actions.
 
         Arguments:
